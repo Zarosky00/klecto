@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {
   Archive,
   ArrowLeft,
@@ -103,7 +103,8 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   };
 
   return (
-    <div className="app-frame">
+    <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 310, damping: 28, mass: 0.72 }}>
+    <motion.div className="app-frame" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.52, ease: [0.16, 1, 0.3, 1] }}>
       <DesktopRail view={view} navigate={navigate} onCreate={() => setCreateOpen(true)} viewer={initialData.viewer} />
 
       <header className="mobile-topbar">
@@ -131,7 +132,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
         )}
       </AnimatePresence>
 
-      <main className="main-column">
+      <motion.main className="main-column" initial={{ opacity: 0, y: 20, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.06, duration: 0.56, ease: [0.16, 1, 0.3, 1] }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
             {view === "home" && (
@@ -157,23 +158,24 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
             {view === "profile" && <ProfileView onOpenCollection={() => navigate("collections")} viewer={initialData.viewer} />}
           </motion.div>
         </AnimatePresence>
-      </main>
+      </motion.main>
 
       <ContextRail view={view} navigate={navigate} />
 
       <nav className="mobile-bottom-nav" aria-label="Primary navigation">
         {navItems.slice(0, 4).map((item) => {
           const Icon = item.icon;
-          return <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={21} /><span>{item.label}</span>{item.id === "inbox" && <i>2</i>}</button>;
+          return <motion.button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)} whileTap={{ scale: 0.92 }}><Icon size={21} /><span>{item.label}</span>{item.id === "inbox" && <i>2</i>}</motion.button>;
         })}
-        <button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create"><Plus size={22} /></button>
+        <motion.button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>
       </nav>
 
       <AnimatePresence>
         {commentItem && <CommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
         {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
       </AnimatePresence>
-    </div>
+    </motion.div>
+    </MotionConfig>
   );
 }
 
@@ -183,7 +185,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 function DesktopRail({ view, navigate, onCreate, viewer }: { view: View; navigate: (view: View) => void; onCreate: () => void; viewer: ViewerDTO | null }) {
   return (
-    <aside className="desktop-rail">
+    <motion.aside className="desktop-rail" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
       <Brand />
       <nav className="rail-nav">
         {navItems.map((item) => <NavButton key={item.id} {...item} active={view === item.id} onClick={() => navigate(item.id)} />)}
@@ -192,12 +194,12 @@ function DesktopRail({ view, navigate, onCreate, viewer }: { view: View; navigat
       <div className="rail-spacer" />
       <button className="quiet-nav" onClick={() => { window.location.href = viewer ? "/settings/profile" : "/login"; }}><Settings size={20} /><span>Settings</span></button>
       <UserMini viewer={viewer} />
-    </aside>
+    </motion.aside>
   );
 }
 
 function NavButton({ label, icon: Icon, active, onClick }: { label: string; icon: typeof Home; active: boolean; onClick: () => void }) {
-  return <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}><Icon size={21} strokeWidth={active ? 2.4 : 1.8} /><span>{label}</span>{label === "Inbox" && <i>2</i>}</button>;
+  return <motion.button className={`nav-button ${active ? "active" : ""}`} onClick={onClick} whileHover={{ x: 3 }} whileTap={{ scale: 0.98 }}><Icon size={21} strokeWidth={active ? 2.4 : 1.8} /><span>{label}</span>{label === "Inbox" && <i>2</i>}</motion.button>;
 }
 
 function UserMini({ viewer }: { viewer: ViewerDTO | null }) {
@@ -255,7 +257,7 @@ function FeedCard({ item, index, liked, saved, wished, onLike, onSave, onWish, o
   const mood = item.mood ? moodLabels[item.mood] : null;
   const MoodIcon = mood?.icon;
   return (
-    <motion.article layout className="feed-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ delay: index * 0.05 }}>
+    <motion.article layout className="feed-card" initial={{ opacity: 0, y: 22, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} whileHover={{ y: -4 }} transition={{ delay: index * 0.055, duration: 0.46, ease: [0.16, 1, 0.3, 1] }}>
       <div className="post-head">
         <button className="author"><img src={item.author.avatar} alt="" /><span><strong>{item.author.name}{item.author.verified && <ShieldCheck size={14} />}</strong><small>@{item.author.handle} · {item.time}</small></span></button>
         <button className="icon-button"><Ellipsis size={19} /></button>
@@ -302,7 +304,7 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
       <div className="collection-toolbar"><div className="select-like"><Grid2X2 size={16} />{scope}<ChevronDown size={15} /></div><button className="icon-button"><Search size={19} /></button><button className="icon-button"><SlidersHorizontal size={18} /></button></div>
       <div className="collection-grid">
         {cards.map((collection, index) => (
-          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; }}>
+          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; }}>
             <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.items.length}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
             <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollections.map((entry) => entry.name).slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.items.length} items</span><button className="icon-button" onClick={(event) => event.stopPropagation()}><MoreHorizontal size={18} /></button></div></div>
           </motion.article>
@@ -391,13 +393,13 @@ function ProfileView({ onOpenCollection, viewer }: { onOpenCollection: () => voi
 
 function ContextRail({ navigate }: { view: View; navigate: (view: View) => void }) {
   return (
-    <aside className="context-rail">
+    <motion.aside className="context-rail" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.14, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
       <div className="search-box global-search"><Search size={17} /><input placeholder="Search Klecto" aria-label="Search Klecto" /><kbd>⌘ K</kbd></div>
       <section className="side-card similarity-card"><div className="side-card-head"><span><Sparkles size={16} /> YOUR SIMILARITY</span><button onClick={() => navigate("matches")}>View all</button></div><div className="similarity-feature"><div className="side-ring">82%</div><span><strong>Great taste travels.</strong><p>You share 23 interests with collectors in your circle.</p></span></div><div className="overlap-avatars">{matches.map((match) => <img key={match.name} src={match.avatar} alt="" />)}<span>+18</span><small>collectors match above 70%</small></div></section>
       <section className="side-card"><div className="side-card-head"><span><Compass size={16} /> PEOPLE TO KNOW</span><button onClick={() => navigate("matches")}>See all</button></div>{matches.slice(0, 3).map((match) => <div className="person-row" key={match.name}><img src={match.avatar} alt="" /><span><strong>{match.name}</strong><small>{match.score}% match · {match.shared[0]}</small></span><button>Follow</button></div>)}</section>
       <section className="side-card prompt-card"><span>WEEKLY PROMPT · 04</span><h3>The piece you almost let go.</h3><p>Share its story with the community.</p><button className="secondary-button">Add your answer <ArrowLeft size={15} /></button></section>
       <footer><span>About</span><span>Privacy</span><span>Guidelines</span><span>© 2026 Klecto</span></footer>
-    </aside>
+    </motion.aside>
   );
 }
 
