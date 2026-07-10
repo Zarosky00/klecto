@@ -5,6 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {
   Archive,
   ArrowLeft,
+  Ban,
   Bell,
   Bookmark,
   Check,
@@ -27,6 +28,7 @@ import {
   Maximize2,
   MoreHorizontal,
   Paperclip,
+  Pencil,
   Phone,
   Plus,
   Repeat2,
@@ -38,6 +40,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
+  Trash2,
   UserRound,
   Video,
   X,
@@ -84,6 +87,13 @@ type CommentReply = {
   likes: number;
 };
 type CommentRecord = CommentReply & { replies: CommentReply[] };
+type ChatMessage = {
+  id: string;
+  body: string;
+  time: string;
+  direction: "received" | "sent";
+  replyTo?: string;
+};
 
 const navItems: { id: View; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
@@ -196,7 +206,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
             )}
             {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreview} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
-            {view === "inbox" && <PremiumInboxView onOpenCollector={setCollectorPreview} />}
+            {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}
             {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} />}
           </motion.div>
       </motion.main>
@@ -211,12 +221,10 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
         {view !== "inbox" && <motion.button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>}
       </nav>
 
-      <AnimatePresence>
-        {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
-        {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
-        {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
-        {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
-      </AnimatePresence>
+      {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
+      {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
+      {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
+      {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
     </motion.div>
     </MotionConfig>
   );
@@ -328,11 +336,34 @@ function FeedMediaGallery({ item, mood, MoodIcon }: { item: FeedItem; mood: stri
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistance = useRef<number | null>(null);
+  const pinchStartZoom = useRef(1);
 
   const goTo = (nextIndex: number) => {
     const wrappedIndex = (nextIndex + images.length) % images.length;
     setDirection(wrappedIndex >= activeIndex ? 1 : -1);
     setActiveIndex(wrappedIndex);
+    setZoom(1);
+  };
+
+  const updatePointer = (event: React.PointerEvent<HTMLElement>) => {
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size !== 2) return;
+    const [first, second] = [...pointers.current.values()];
+    const distance = Math.hypot(first.x - second.x, first.y - second.y);
+    if (!pinchDistance.current) {
+      pinchDistance.current = distance;
+      pinchStartZoom.current = zoom;
+      return;
+    }
+    setZoom(Math.min(3, Math.max(1, pinchStartZoom.current * (distance / pinchDistance.current))));
+  };
+
+  const clearPointer = (event: React.PointerEvent<HTMLElement>) => {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size < 2) pinchDistance.current = null;
   };
 
   return (
@@ -342,21 +373,20 @@ function FeedMediaGallery({ item, mood, MoodIcon }: { item: FeedItem; mood: stri
         if (event.key === "ArrowRight") { event.preventDefault(); goTo(activeIndex + 1); }
         if (event.key === "ArrowLeft") { event.preventDefault(); goTo(activeIndex - 1); }
       }} aria-label={`${item.title} photo gallery`}>
-        <motion.div className="media-frame" drag={images.length > 1 ? "x" : false} dragConstraints={{ left: 0, right: 0 }} dragElastic={0.14} onDragEnd={(_, info) => {
+        <motion.div className={`media-frame ${zoom > 1 ? "zoomed" : ""}`} drag={images.length > 1 && zoom === 1 ? "x" : false} dragConstraints={{ left: 0, right: 0 }} dragElastic={0.14} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onDragEnd={(_, info) => {
           if (images.length < 2 || Math.abs(info.offset.x) < 46) return;
           goTo(info.offset.x < 0 ? activeIndex + 1 : activeIndex - 1);
         }}>
           <AnimatePresence initial={false} mode="wait" custom={direction}>
-            <motion.img key={images[activeIndex]} src={images[activeIndex]} alt={`${item.imageAlt} — photo ${activeIndex + 1} of ${images.length}`} custom={direction} initial={{ opacity: 0, x: direction * 28, scale: 1.015 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: direction * -28, scale: 1.01 }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} onClick={() => setLightboxOpen(true)} />
+            <motion.img key={images[activeIndex]} src={images[activeIndex]} alt={`${item.imageAlt} photo ${activeIndex + 1} of ${images.length}`} custom={direction} initial={{ opacity: 0, x: direction * 28, scale: 1.015 }} animate={{ opacity: 1, x: 0, scale: zoom }} exit={{ opacity: 0, x: direction * -28, scale: 1.01 }} transition={{ duration: zoom === 1 ? 0.32 : 0.14, ease: [0.16, 1, 0.3, 1] }} onDoubleClick={() => setZoom((current) => current > 1 ? 1 : 2)} onClick={() => { if (zoom === 1) setLightboxOpen(true); else setZoom(1); }} />
           </AnimatePresence>
           {mood && MoodIcon && <span className={`mood-tag ${item.mood}`}><MoodIcon size={14} fill={item.mood === "favorite" ? "currentColor" : "none"} />{mood}</span>}
           {images.length > 1 && <>
-            <button className="gallery-nav previous" onClick={() => goTo(activeIndex - 1)} aria-label="Previous photo"><ChevronLeft size={19} /></button>
-            <button className="gallery-nav next" onClick={() => goTo(activeIndex + 1)} aria-label="Next photo"><ChevronRight size={19} /></button>
             <div className="gallery-dots" aria-label={`Photo ${activeIndex + 1} of ${images.length}`}>{images.map((_, imageIndex) => <button key={imageIndex} className={activeIndex === imageIndex ? "active" : ""} onClick={() => goTo(imageIndex)} aria-label={`Show photo ${imageIndex + 1}`} />)}</div>
           </>}
           <button className="gallery-expand" onClick={() => setLightboxOpen(true)} aria-label="View photos fullscreen"><Maximize2 size={16} /></button>
           {images.length > 1 && <span className="image-count">{activeIndex + 1} / {images.length}</span>}
+          <span className="gallery-gesture-hint">{zoom > 1 ? "Tap to reset" : "Swipe, pinch or double tap"}</span>
         </motion.div>
       </div>
       <AnimatePresence>{lightboxOpen && <MediaLightbox images={images} imageAlt={item.imageAlt} initialIndex={activeIndex} onClose={() => setLightboxOpen(false)} />}</AnimatePresence>
@@ -478,6 +508,7 @@ function previewFromCard(card: (typeof collectionCards)[number]): CollectionPrev
 
 function CollectorProfileSheet({ collector, onClose, onOpenCollection }: { collector: CollectorPreview; onClose: () => void; onOpenCollection: (collection: CollectionPreview) => void }) {
   const [tab, setTab] = useState<"Overview" | "Shelves">("Overview");
+  const [fullProfile, setFullProfile] = useState(false);
   const cards = collectionCards.filter((card) => card.ownerHandle === collector.handle);
   const visibleCards = cards.length ? cards : collectionCards.slice(0, 2);
   const relatedItems = feedItems.filter((item) => item.author.handle === collector.handle);
@@ -491,7 +522,8 @@ function CollectorProfileSheet({ collector, onClose, onOpenCollection }: { colle
           <div className="collector-sheet-identity"><img src={collector.avatar} alt={collector.name} /><div><span className="eyebrow">ON KLECTO</span><h2>{collector.name}{collector.verified && <ShieldCheck size={17} />}</h2><p>@{collector.handle}</p></div>{collector.score ? <div className="collector-score">{collector.score}%<small>match</small></div> : null}</div>
           <p className="collector-sheet-bio">A shelf built around the details worth returning to: provenance, patina, and the stories no product page can hold.</p>
           <div className="collector-shared"><span>YOU BOTH KEEP</span><div>{shared.slice(0, 4).map((tag) => <i key={tag}>{tag}</i>)}</div></div>
-          <div className="collector-sheet-actions"><button className="primary-button" onClick={() => { window.location.href = `/u/${collector.handle}`; }}><UserRound size={17} /> Open profile</button><button className="secondary-button"><MessageCircle size={17} /> Message</button></div>
+          <div className="collector-sheet-actions"><button className="primary-button" onClick={() => setFullProfile(true)}><UserRound size={17} /> View full profile</button><button className="secondary-button" onClick={() => setTab("Shelves")}><Layers3 size={17} /> Shelves</button></div>
+          <AnimatePresence>{fullProfile && <motion.section className="collector-full-profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}><div className="collector-full-stats"><span><strong>{collector.score ?? 82}%</strong> similarity</span><span><strong>{visibleCards.length}</strong> public shelves</span><span><strong>{visibleCards.reduce((total, card) => total + card.count, 0)}</strong> objects</span></div><p>Everything visible here is a public part of the @{collector.handle} collection story.</p><div className="collector-full-shelves">{visibleCards.map((card) => <button key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))}><img src={card.image} alt="" /><span><strong>{card.title}</strong><small>{card.count} objects</small></span><ChevronRight size={16} /></button>)}</div></motion.section>}</AnimatePresence>
           <div className="sheet-tabs"><button className={tab === "Overview" ? "active" : ""} onClick={() => setTab("Overview")}>Overview</button><button className={tab === "Shelves" ? "active" : ""} onClick={() => setTab("Shelves")}>Shelves <span>{visibleCards.length}</span></button></div>
           {tab === "Overview" ? <div className="collector-glance"><div><strong>{collector.score ?? 82}%</strong><span>collection overlap</span></div><div><strong>{Math.max(12, relatedItems.length * 14 + 12)}</strong><span>objects shared</span></div><div><strong>{visibleCards.reduce((total, card) => total + card.count, 0)}</strong><span>catalogued</span></div></div> : <div className="sheet-collection-list">{visibleCards.map((card) => <button className="sheet-collection" key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))}><img src={card.image} alt="" /><span><small>{card.privacy} shelf</small><strong>{card.title}</strong><em>{card.count} objects <ChevronRight size={15} /></em></span></button>)}</div>}
         </div>
@@ -501,10 +533,18 @@ function CollectorProfileSheet({ collector, onClose, onOpenCollection }: { colle
 }
 
 function CollectionPreviewSheet({ collection, onClose, onOpenOwner }: { collection: CollectionPreview; onClose: () => void; onOpenOwner: (collector: CollectorPreview) => void }) {
+  const [activeSubcollection, setActiveSubcollection] = useState<string | null>(null);
   const match = matches.find((entry) => entry.handle === collection.ownerHandle);
   const owner: CollectorPreview = match ?? { name: collection.ownerName ?? collection.ownerHandle, handle: collection.ownerHandle, avatar: feedItems.find((item) => item.author.handle === collection.ownerHandle)?.author.avatar ?? DEFAULT_AVATAR };
   const relatedItems = feedItems.filter((item) => item.author.handle === collection.ownerHandle);
   const showcase = relatedItems.length ? relatedItems : feedItems.slice(0, 2);
+  const subcollections = collection.title.toLowerCase().includes("sneaker")
+    ? ["Nike", "New Balance", "Air Jordan"]
+    : collection.title.toLowerCase().includes("watch")
+      ? ["Seiko", "Hamilton", "Everyday wear"]
+      : collection.title.toLowerCase().includes("record")
+        ? ["Jazz", "Soul", "Ambient"]
+        : ["Featured finds", "Recent additions", "Stories"];
 
   return (
     <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -513,8 +553,9 @@ function CollectionPreviewSheet({ collection, onClose, onOpenOwner }: { collecti
         <div className="collection-preview-body">
           <button className="sheet-owner" onClick={() => { onClose(); onOpenOwner(owner); }}><img src={owner.avatar} alt="" /><span><small>CURATED BY</small><strong>{owner.name}</strong><em>@{owner.handle}</em></span><ChevronRight size={18} /></button>
           <div className="collection-preview-stats"><span><strong>{collection.count}</strong> objects</span><span><strong>{showcase.length}</strong> highlighted</span><span><strong>Updated</strong> recently</span></div>
-          <div className="collection-preview-heading"><div><span className="eyebrow">FROM THIS SHELF</span><h3>Things with a point of view.</h3></div><button className="secondary-button" onClick={() => window.location.href = `/u/${owner.handle}`}>View all</button></div>
-          <div className="collection-preview-items">{showcase.map((item) => <article key={item.id}><img src={item.image} alt="" /><span><small>{item.metadata[0] ?? "Collection item"}</small><strong>{item.title}</strong></span></article>)}</div>
+          {activeSubcollection && <button className="collection-preview-back" onClick={() => setActiveSubcollection(null)}><ArrowLeft size={15} /> All subcollections</button>}
+          <div className="collection-preview-heading"><div><span className="eyebrow">{activeSubcollection ? "ITEMS IN THIS SUBCOLLECTION" : "SUBCOLLECTIONS"}</span><h3>{activeSubcollection ?? "Choose a shelf within this collection."}</h3></div><button className="secondary-button" onClick={() => { onClose(); onOpenOwner(owner); }}>View profile</button></div>
+          {activeSubcollection ? <div className="collection-preview-items">{showcase.map((item) => <article key={item.id}><img src={item.image} alt="" /><span><small>{activeSubcollection} - {item.metadata[0] ?? "Collection item"}</small><strong>{item.title}</strong></span></article>)}</div> : <div className="collection-preview-subcollections">{subcollections.map((name, index) => <button key={name} onClick={() => setActiveSubcollection(name)}><span><small>SUBCOLLECTION {index + 1}</small><strong>{name}</strong><em>{Math.max(2, Math.round(collection.count / subcollections.length))} items</em></span><ChevronRight size={18} /></button>)}</div>}
         </div>
       </motion.aside>
     </motion.div>
@@ -610,6 +651,7 @@ function Comment({ comment }: { comment: { name: string; handle: string; avatar:
   return <div className="comment"><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} · {comment.time}</span><button><MoreHorizontal size={16} /></button></div><p>{comment.body}</p><div className="comment-actions"><button><Heart size={15} /> {comment.likes}</button><button><MessageCircle size={15} /> Reply</button><button><Share2 size={15} /></button><button><Flag size={14} /></button></div></div></div>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PremiumInboxView({ onOpenCollector }: { onOpenCollector: (collector: CollectorPreview) => void }) {
   const [selected, setSelected] = useState(0);
   const [message, setMessage] = useState("");
@@ -661,6 +703,74 @@ function PremiumInboxView({ onOpenCollector }: { onOpenCollector: (collector: Co
       <AnimatePresence>{calling && <motion.div className="call-toast" initial={{ opacity: 0, y: 18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.96 }}><span>{calling === "video" ? <Video size={18} /> : <Phone size={17} />}</span><div><strong>{calling === "video" ? "Video call ready" : "Audio call ready"}</strong><small>Connect when the other collector accepts.</small></div><button onClick={() => setCalling(null)} aria-label="Dismiss call notice"><X size={17} /></button></motion.div>}</AnimatePresence>
     </div>
   );
+}
+
+function AdvancedInboxView({ onOpenCollector }: { onOpenCollector: (collector: CollectorPreview) => void }) {
+  const [selected, setSelected] = useState(0);
+  const [draft, setDraft] = useState("");
+  const [tab, setTab] = useState<"All" | "Unread" | "Groups">("All");
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
+  const [calling, setCalling] = useState<"audio" | "video" | null>(null);
+  const [blockedHandles, setBlockedHandles] = useState<string[]>([]);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [menuMessage, setMenuMessage] = useState<ChatMessage | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: "message-1", body: "Hey! Your New Balance shelf is excellent. Is the grey 990v3 as comfortable as everyone says?", time: "10:31", direction: "received" },
+    { id: "message-2", body: "Completely. It is the pair I grab without thinking.", time: "10:33", direction: "sent" },
+    { id: "message-3", body: "That colorway is unreal - trade someday?", time: "10:36", direction: "received" },
+  ]);
+  const active = conversations[selected] ?? conversations[0];
+  const activeMatch = active.handle ? matches.find((match) => match.handle === active.handle) : undefined;
+  const activeCollector: CollectorPreview | null = active.handle ? activeMatch ?? { name: active.name, handle: active.handle, avatar: active.avatar } : null;
+  const isBlocked = Boolean(active.handle && blockedHandles.includes(active.handle));
+  const visibleConversations = conversations.map((conversation, index) => ({ conversation, index })).filter(({ conversation }) => tab === "All" || (tab === "Unread" ? conversation.unread > 0 : !conversation.handle));
+
+  const selectConversation = (index: number) => { setSelected(index); setMobileThreadOpen(true); setReplyingTo(null); setEditingMessage(null); setDraft(""); };
+  const submit = () => {
+    const body = draft.trim();
+    if (!body || isBlocked) return;
+    if (editingMessage) {
+      setMessages((current) => current.map((message) => message.id === editingMessage.id ? { ...message, body, time: "Edited" } : message));
+      setEditingMessage(null);
+    } else {
+      setMessages((current) => [...current, { id: `message-${Date.now()}`, body, time: "Now", direction: "sent", replyTo: replyingTo?.body }]);
+    }
+    setDraft("");
+    setReplyingTo(null);
+  };
+  const beginEdit = (message: ChatMessage) => { setEditingMessage(message); setReplyingTo(null); setDraft(message.body); setMenuMessage(null); };
+  const beginReply = (message: ChatMessage) => { setReplyingTo(message); setEditingMessage(null); setDraft(""); setMenuMessage(null); };
+  const blockActive = () => {
+    if (active.handle) setBlockedHandles((current) => current.includes(active.handle as string) ? current.filter((handle) => handle !== active.handle) : [...current, active.handle as string]);
+    setMenuMessage(null);
+  };
+
+  return (
+    <div className={`inbox-shell premium-inbox advanced-inbox ${mobileThreadOpen ? "thread-open" : ""} ${isBlocked ? "conversation-blocked" : ""}`}>
+      <section className="conversation-list premium-conversation-list">
+        <div className="inbox-title premium-inbox-title"><div><span className="eyebrow">YOUR CIRCLE</span><h1>Inbox</h1><p>Small conversations, well kept.</p></div><button className="new-thread-button" aria-label="Start a new conversation"><Plus size={19} /></button></div>
+        <div className="inbox-search-wrap"><div className="search-box"><Search size={18} /><input aria-label="Search conversations" placeholder="Search your circle" /></div></div>
+        <div className="inbox-tabs premium-inbox-tabs" aria-label="Conversation filter">{(["All", "Unread", "Groups"] as const).map((entry) => <button key={entry} className={tab === entry ? "active" : ""} onClick={() => setTab(entry)}>{entry}{entry === "Unread" && <span>{conversations.filter((conversation) => conversation.unread > 0).length}</span>}</button>)}</div>
+        <div className="conversation-stack">{visibleConversations.map(({ conversation, index }) => <motion.button layout key={conversation.name} className={`conversation premium-conversation ${selected === index ? "active" : ""}`} onClick={() => selectConversation(index)} whileTap={{ scale: 0.985 }}><span className="avatar-wrap"><img src={conversation.avatar} alt="" />{conversation.online && <i />}</span><span className="conversation-copy"><strong>{conversation.name}</strong><small>{conversation.message}</small></span><span className="conversation-meta"><time>{conversation.time}</time>{conversation.unread > 0 && <i>{conversation.unread}</i>}</span></motion.button>)}</div>
+        <div className="inbox-footnote"><span><Sparkles size={15} /> Your best collection match is one message away.</span></div>
+      </section>
+      <section className="chat-panel premium-chat-panel">
+        <header className="chat-head premium-chat-head"><button className="mobile-thread-back" onClick={() => setMobileThreadOpen(false)} aria-label="Back to conversations"><ChevronLeft size={21} /></button><button className="chat-person" onClick={() => activeCollector && onOpenCollector(activeCollector)} disabled={!activeCollector || isBlocked}><span className="avatar-wrap"><img src={active.avatar} alt="" />{active.online && <i />}</span><span><strong>{active.name}</strong><small>{active.handle ? `${active.online ? "Active now" : "Away"}${activeMatch ? ` - ${activeMatch.score}% match` : ""}` : "Group conversation"}</small></span></button>{activeCollector && !isBlocked && <button className="chat-profile-link" onClick={() => onOpenCollector(activeCollector)}>Profile</button>}<div className="chat-tools"><button className="icon-button" onClick={() => setCalling("audio")} aria-label="Start audio call" disabled={isBlocked}><Phone size={18} /></button><button className="icon-button video-call" onClick={() => setCalling("video")} aria-label="Start video call" disabled={isBlocked}><Video size={19} /></button><button className="icon-button" onClick={blockActive} aria-label={isBlocked ? "Unblock collector" : "Block collector"}>{isBlocked ? <Check size={18} /> : <Ban size={18} />}</button></div></header>
+        <div className="chat-body premium-chat-body"><span className="day-divider">TODAY</span>{messages.map((message, index) => <motion.div key={message.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.04, 0.16) }}><ChatMessageBubble message={message} onOpenMenu={setMenuMessage} />{index === 1 && <motion.button className="shared-item premium-shared-item" whileTap={{ scale: 0.99 }}><img src={collectionCards[0].image} alt="" /><span><small>SHARED FROM A SHELF</small><strong>New Balance 990v3</strong><p>Archive sneakers - 2021</p></span><ChevronRight size={18} /></motion.button>}</motion.div>)}{isBlocked && <div className="chat-blocked-note"><Ban size={16} /><span><strong>{active.name} is blocked.</strong><small>They cannot message or call you from this conversation.</small></span><button onClick={() => active.handle && setBlockedHandles((current) => current.filter((handle) => handle !== active.handle))}>Unblock</button></div>}</div>
+        <form className="composer premium-composer advanced-composer" onSubmit={(event) => { event.preventDefault(); submit(); }}><button type="button" className="composer-add" aria-label="Add something" disabled={isBlocked}><Plus size={20} /></button><div className="composer-field">{replyingTo && <span>Replying to: {replyingTo.body.slice(0, 34)}<button type="button" onClick={() => setReplyingTo(null)}><X size={12} /></button></span>}{editingMessage && <span>Editing message<button type="button" onClick={() => { setEditingMessage(null); setDraft(""); }}><X size={12} /></button></span>}<input value={draft} onChange={(event) => setDraft(event.target.value)} disabled={isBlocked} placeholder={isBlocked ? `${active.name} is blocked` : `Message ${active.name.split(" ")[0]}`} /></div><button type="button" className="composer-mic" aria-label="Record a voice message" disabled={isBlocked}><Mic size={19} /></button><button className="send-button" disabled={isBlocked || !draft.trim()} aria-label="Send message"><Send size={17} /></button></form>
+      </section>
+      <AnimatePresence>{calling && <motion.div className="call-toast" initial={{ opacity: 0, y: 18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.96 }}><span>{calling === "video" ? <Video size={18} /> : <Phone size={17} />}</span><div><strong>{calling === "video" ? "Video call ready" : "Audio call ready"}</strong><small>Connect when the other collector accepts.</small></div><button onClick={() => setCalling(null)} aria-label="Dismiss call notice"><X size={17} /></button></motion.div>}{menuMessage && <ChatActionSheet message={menuMessage} canBlock={Boolean(active.handle)} onClose={() => setMenuMessage(null)} onReply={() => beginReply(menuMessage)} onEdit={() => beginEdit(menuMessage)} onDelete={() => { setMessages((current) => current.filter((message) => message.id !== menuMessage.id)); setMenuMessage(null); }} onBlock={blockActive} />}</AnimatePresence>
+    </div>
+  );
+}
+
+function ChatMessageBubble({ message, onOpenMenu }: { message: ChatMessage; onOpenMenu: (message: ChatMessage) => void }) {
+  return <div className={`message ${message.direction} chat-message-bubble`}>{message.replyTo && <span className="chat-reply-context">{message.replyTo}</span>}<p>{message.body}</p><footer><time>{message.time}</time><button onClick={() => onOpenMenu(message)} aria-label="Message options"><MoreHorizontal size={15} /></button></footer></div>;
+}
+
+function ChatActionSheet({ message, canBlock, onClose, onReply, onEdit, onDelete, onBlock }: { message: ChatMessage; canBlock: boolean; onClose: () => void; onReply: () => void; onEdit: () => void; onDelete: () => void; onBlock: () => void }) {
+  return <motion.div className="chat-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="chat-action-sheet" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.97 }} transition={{ type: "spring", damping: 25, stiffness: 340 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">MESSAGE OPTIONS</span><p>{message.body}</p><button onClick={onReply}><MessageCircle size={18} /> Reply</button>{message.direction === "sent" && <><button onClick={onEdit}><Pencil size={18} /> Edit message</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete message</button></>}{message.direction === "received" && canBlock && <button className="danger" onClick={onBlock}><Ban size={18} /> Block collector</button>}<button className="cancel" onClick={onClose}>Cancel</button></motion.div></motion.div>;
 }
 
 function PremiumProfileView({ onOpenCollection, viewer }: { onOpenCollection: (collection: CollectionPreview) => void; viewer: ViewerDTO | null }) {
@@ -729,7 +839,7 @@ function PremiumCommentDrawer({ item, onClose }: { item: FeedItem; onClose: () =
         <header><div><span className="eyebrow">CONVERSATION</span><h2>{item.comments + newComments.length} comments</h2></div><button className="icon-button" onClick={onClose} aria-label="Close comments"><X size={20} /></button></header>
         <div className="comment-context"><img src={item.image} alt="" /><span><strong>{item.title}</strong><small>by {item.author.name}</small></span><button className="icon-button" aria-label="Open item"><ChevronRight size={18} /></button></div>
         <div className="comment-sort"><span>Top comments</span><ChevronDown size={15} /><small>Hold a comment for options</small></div>
-        <div className="comment-tree premium-comment-tree">{visibleComments.map((comment) => <div className="comment-thread" key={comment.id}><InteractiveComment comment={comment} liked={likedCommentIds.includes(comment.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(comment.id) ? current.filter((id) => id !== comment.id) : [...current, comment.id])} onOpenMenu={setMenuComment} />{comment.replies.map((child) => <div className="nested-comment" key={child.id}><InteractiveComment comment={child} liked={likedCommentIds.includes(child.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(child.id) ? current.filter((id) => id !== child.id) : [...current, child.id])} onOpenMenu={setMenuComment} /></div>)}</div>)}</div>
+        <div className="comment-tree premium-comment-tree">{visibleComments.map((comment) => <div className="comment-thread" key={comment.id}><InteractiveComment comment={comment} liked={likedCommentIds.includes(comment.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(comment.id) ? current.filter((id) => id !== comment.id) : [...current, comment.id])} onReply={setReplyingTo} onOpenMenu={setMenuComment} />{comment.replies.map((child) => <div className="nested-comment" key={child.id}><InteractiveComment comment={child} liked={likedCommentIds.includes(child.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(child.id) ? current.filter((id) => id !== child.id) : [...current, child.id])} onReply={setReplyingTo} onOpenMenu={setMenuComment} /></div>)}</div>)}</div>
         <form className="comment-composer premium-comment-composer" onSubmit={(event) => { event.preventDefault(); submit(); }}><img src={DEFAULT_AVATAR} alt="" /><div>{replyingTo && <span className="replying-to">Replying to @{replyingTo.handle}<button type="button" onClick={() => setReplyingTo(null)}><X size={13} /></button></span>}<textarea placeholder="Add to the conversation..." value={draft} onChange={(event) => setDraft(event.target.value)} /><span><button type="button" aria-label="Add image"><ImagePlus size={17} /></button><button type="button" aria-label="Attach file"><Paperclip size={17} /></button><button className="primary-button" disabled={!draft.trim()}>Reply</button></span></div></form>
         <AnimatePresence>{menuComment && <CommentActionSheet comment={menuComment} onClose={() => setMenuComment(null)} onReply={() => { setReplyingTo(menuComment); setMenuComment(null); }} />}</AnimatePresence>
       </motion.aside>
@@ -737,7 +847,7 @@ function PremiumCommentDrawer({ item, onClose }: { item: FeedItem; onClose: () =
   );
 }
 
-function InteractiveComment({ comment, liked, onToggleLike, onOpenMenu }: { comment: CommentReply; liked: boolean; onToggleLike: () => void; onOpenMenu: (comment: CommentReply) => void }) {
+function InteractiveComment({ comment, liked, onToggleLike, onReply, onOpenMenu }: { comment: CommentReply; liked: boolean; onToggleLike: () => void; onReply: (comment: CommentReply) => void; onOpenMenu: (comment: CommentReply) => void }) {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearHold = () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; } };
   useEffect(() => () => clearHold(), []);
@@ -745,7 +855,7 @@ function InteractiveComment({ comment, liked, onToggleLike, onOpenMenu }: { comm
     if ((event.pointerType === "mouse" && event.button !== 0) || (event.target as HTMLElement).closest("button")) return;
     holdTimer.current = setTimeout(() => { onOpenMenu(comment); holdTimer.current = null; }, 560);
   };
-  return <article className="comment interactive-comment" onPointerDown={beginHold} onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold} onPointerMove={clearHold}><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} - {comment.time}</span><button onClick={() => onOpenMenu(comment)} aria-label={`More options for ${comment.name}`}><MoreHorizontal size={17} /></button></div><p>{comment.body}</p><button className={`comment-like-count ${liked ? "liked" : ""}`} onClick={onToggleLike} aria-label={`Like comment by ${comment.name}`}><Heart size={15} fill={liked ? "currentColor" : "none"} /> <span>{comment.likes + (liked ? 1 : 0)}</span></button></div></article>;
+  return <article className="comment interactive-comment" onPointerDown={beginHold} onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold} onPointerMove={clearHold}><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} - {comment.time}</span><button onClick={() => onOpenMenu(comment)} aria-label={`More options for ${comment.name}`}><MoreHorizontal size={17} /></button></div><p>{comment.body}</p><div className="comment-quick-actions"><button className={`comment-like-count ${liked ? "liked" : ""}`} onClick={onToggleLike} aria-label={`Like comment by ${comment.name}`}><Heart size={15} fill={liked ? "currentColor" : "none"} /> <span>{comment.likes + (liked ? 1 : 0)}</span></button><button className="comment-reply-button" onClick={() => onReply(comment)}><MessageCircle size={14} /> Reply</button></div></div></article>;
 }
 
 function CommentActionSheet({ comment, onClose, onReply }: { comment: CommentReply; onClose: () => void; onReply: () => void }) {

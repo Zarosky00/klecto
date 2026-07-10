@@ -176,6 +176,7 @@ export const matches = [
 export const conversations = [
   {
     name: "Maya Chen",
+    handle: "mayacurates",
     avatar: matches[0].avatar,
     message: "That 990v3 colorway is unreal — trade someday?",
     time: "2m",
