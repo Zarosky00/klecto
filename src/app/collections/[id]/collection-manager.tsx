@@ -30,6 +30,7 @@ import {
   recordCollectionShareAction,
   updateCollectionAction,
 } from "@/app/actions/catalog";
+import { SubcollectionWorkspace } from "./subcollection-workspace";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CollectionDTO,
@@ -71,7 +72,7 @@ export function CollectionManager(props: CollectionManagerProps) {
     : null;
 
   if (activeSubcollection) {
-    return <SubcollectionWorkspace {...props} subcollection={activeSubcollection} />;
+    return <SubcollectionWorkspace viewer={props.viewer} collection={props.collection} subcollection={activeSubcollection} />;
   }
 
   return <CollectionWorkspace {...props} />;
@@ -316,7 +317,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
           <div className="subcollection-route-grid">
             {collection.subcollections.map((entry, index) => {
               const entries = collection.items.filter((item) => item.subcollectionId === entry.id);
-              const preview = entries.find((item) => item.imageUrl)?.imageUrl;
+              const preview = entry.coverUrl ?? entries.find((item) => item.imageUrl)?.imageUrl;
               return (
                 <article className="subcollection-route-card" key={entry.id}>
                   <Link href={`/collections/${collection.id}/subcollections/${entry.id}`} className="subcollection-route-link">
@@ -364,7 +365,9 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   );
 }
 
-function SubcollectionWorkspace({ viewer, collection, subcollection }: CollectionManagerProps & { subcollection: SubcollectionDTO }) {
+// Kept temporarily for the direct-item grid while its owner controls are consolidated above.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacySubcollectionWorkspace({ viewer, collection, subcollection }: CollectionManagerProps & { subcollection: SubcollectionDTO }) {
   const [notice, setNotice] = useState<Notice>(null);
   const [pending, startTransition] = useTransition();
   const items = collection.items

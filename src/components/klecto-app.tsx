@@ -16,7 +16,6 @@ import {
   Compass,
   Ellipsis,
   Flag,
-  Grid2X2,
   Heart,
   Home,
   ImagePlus,
@@ -121,9 +120,23 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [wished, setWished] = useState<string[]>(["camera-1"]);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createContext, setCreateContext] = useState<{ collectionId?: string; subcollectionId?: string }>({});
   const [mobileMenu, setMobileMenu] = useState(false);
   const [collectorPreview, setCollectorPreview] = useState<CollectorPreview | null>(null);
   const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("create") !== "item") return;
+    const collectionId = params.get("collection") ?? undefined;
+    const subcollectionId = params.get("subcollection") ?? undefined;
+    const frame = window.requestAnimationFrame(() => {
+      setCreateContext({ collectionId, subcollectionId });
+      setCreateOpen(true);
+    });
+    window.history.replaceState({}, "", window.location.pathname);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const openFeedCollection = (item: FeedItem) => {
     const collectionName = item.collection.split("/")[0]?.trim() || item.collection;
@@ -212,7 +225,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
                 onOpenCollection={openFeedCollection}
               />
             )}
-            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreview} />}
+            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}
             {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} collections={initialData.collections} />}
@@ -230,7 +243,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
       </nav>
 
       {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
-      {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
+      {createOpen && <CreateModal onClose={() => { setCreateOpen(false); setCreateContext({}); }} data={initialData} initialCollectionId={createContext.collectionId} initialSubcollectionId={createContext.subcollectionId} />}
       {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
       {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
     </motion.div>
@@ -438,46 +451,72 @@ function MediaLightbox({ images, imageAlt, initialIndex, onClose }: { images: st
   );
 }
 
-function CollectionsView({ onCreate, data, onPreviewCollection }: { onCreate: () => void; data: CatalogDashboardDTO; onPreviewCollection: (collection: CollectionPreview) => void }) {
-  const scope = "All collections";
-  const liveCollections = data.viewer ? data.collections : null;
-  const cards = liveCollections ?? collectionCards.map((collection, index) => ({
-    id: `demo-${index}`,
-    name: collection.title,
-    description: collection.subtitle,
-    coverUrl: collection.image,
-    visibility: collection.privacy.toLowerCase() as Visibility,
-    items: Array.from({ length: collection.count }),
-    subcollections: [],
-  }));
-  const subcollectionCount = data.collections.reduce((total, collection) => total + collection.subcollections.length, 0);
+function CollectionsView({ onCreate, data }: { onCreate: () => void; data: CatalogDashboardDTO }) {
+  const [query, setQuery] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState<Visibility | "all">("all");
+  const [sort, setSort] = useState<"recent" | "name" | "items">("recent");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const demoCards = collectionCards
+    .filter((collection) => collection.ownerHandle === "arjcollects")
+    .map((collection) => ({
+      id: `demo-${collection.slug}`,
+      name: collection.title,
+      description: collection.subtitle,
+      coverUrl: collection.image,
+      visibility: collection.privacy.toLowerCase() as Visibility,
+      itemCount: collection.count,
+      subcollectionNames: collection.subtitle.split(",").map((entry) => entry.trim()).filter(Boolean),
+      updatedAt: "2026-07-09T10:20:00.000Z",
+      href: `/demo/collections/${collection.slug}`,
+    }));
+  const cards = data.viewer
+    ? data.collections.map((collection) => ({
+      id: collection.id,
+      name: collection.name,
+      description: collection.description,
+      coverUrl: collection.coverUrl,
+      visibility: collection.visibility,
+      itemCount: collection.items.length,
+      subcollectionNames: collection.subcollections.map((entry) => entry.name),
+      updatedAt: collection.updatedAt,
+      href: `/collections/${collection.id}`,
+    }))
+    : demoCards;
+  const visibleCards = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    return [...cards]
+      .filter((collection) => visibilityFilter === "all" || collection.visibility === visibilityFilter)
+      .filter((collection) => !normalized || [collection.name, collection.description ?? "", ...collection.subcollectionNames].join(" ").toLocaleLowerCase().includes(normalized))
+      .sort((left, right) => {
+        if (sort === "name") return left.name.localeCompare(right.name);
+        if (sort === "items") return right.itemCount - left.itemCount || left.name.localeCompare(right.name);
+        return right.updatedAt.localeCompare(left.updatedAt);
+      });
+  }, [cards, query, sort, visibilityFilter]);
+  const itemCount = cards.reduce((total, collection) => total + collection.itemCount, 0);
+  const subcollectionCount = data.viewer
+    ? data.collections.reduce((total, collection) => total + collection.subcollections.length, 0)
+    : 3;
   return (
     <>
       <section className="page-header"><div><span className="eyebrow">THE THINGS YOU KEEP</span><h1>Collections</h1></div><button className="primary-button" onClick={onCreate}><Plus size={18} /> New collection</button></section>
       <section className="collection-summary">
-        <div><strong>{data.viewer?.itemCount ?? 155}</strong><span>items catalogued</span></div><div><strong>{data.viewer?.collectionCount ?? 12}</strong><span>collections</span></div><div><strong>{data.viewer ? subcollectionCount : 8}</strong><span>subcollections</span></div>
+        <div><strong>{itemCount}</strong><span>items catalogued</span></div><div><strong>{cards.length}</strong><span>collections</span></div><div><strong>{subcollectionCount}</strong><span>subcollections</span></div>
       </section>
-      <div className="collection-toolbar"><div className="select-like"><Grid2X2 size={16} />{scope}<ChevronDown size={15} /></div><button className="icon-button"><Search size={19} /></button><button className="icon-button"><SlidersHorizontal size={18} /></button></div>
+      <div className="collection-toolbar catalog-toolbar">
+        <label className="collection-search"><Search size={17} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your collections" aria-label="Search your collections" />{query ? <button type="button" onClick={() => setQuery("")} aria-label="Clear collection search"><X size={15} /></button> : null}</label>
+        <label className="collection-sort-select"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} aria-label="Sort collections"><option value="recent">Recently updated</option><option value="name">Name A–Z</option><option value="items">Most items</option></select></label>
+        <div className="collection-filter-wrap"><button className={`collection-filter-trigger ${visibilityFilter !== "all" ? "active" : ""}`} onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen}><SlidersHorizontal size={17} /> Filter{visibilityFilter !== "all" ? `: ${visibilityFilter}` : ""}</button>{filtersOpen ? <div className="collection-filter-popover" role="dialog" aria-label="Filter collections"><span>Visibility</span>{(["all", "public", "followers", "private"] as const).map((entry) => <button key={entry} className={visibilityFilter === entry ? "active" : ""} onClick={() => { setVisibilityFilter(entry); setFiltersOpen(false); }}>{entry === "all" ? "All collections" : `${entry[0].toUpperCase()}${entry.slice(1)}`}</button>)}</div> : null}</div>
+      </div>
+      <div className="collection-toolbar-results"><span>{visibleCards.length === cards.length ? `${cards.length} collection${cards.length === 1 ? "" : "s"}` : `${visibleCards.length} of ${cards.length} collections`}</span>{visibilityFilter !== "all" || query ? <button onClick={() => { setQuery(""); setVisibilityFilter("all"); }}>Clear filters</button> : null}</div>
       <div className="collection-grid">
-        {cards.map((collection, index) => (
-          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => {
-            if (data.viewer) {
-              window.location.href = `/collections/${collection.id}`;
-              return;
-            }
-            const source = collectionCards[index];
-            if (!source) return;
-            if (source.ownerHandle === "arjcollects") {
-              window.location.href = `/demo/collections/${source.slug}`;
-              return;
-            }
-            onPreviewCollection({ title: source.title, subtitle: source.subtitle, count: source.count, privacy: source.privacy, image: source.image, ownerHandle: source.ownerHandle });
-          }}>
-            <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.items.length}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
-            <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollections.map((entry) => entry.name).slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.items.length} items</span><button className="icon-button" onClick={(event) => event.stopPropagation()}><MoreHorizontal size={18} /></button></div></div>
+        {visibleCards.map((collection, index) => (
+          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 0.999, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { window.location.href = collection.href; }}>
+            <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.itemCount}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
+            <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollectionNames.slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.itemCount} items</span><ChevronRight size={17} /></div></div>
           </motion.article>
         ))}
-        {liveCollections?.length === 0 && <div className="catalog-empty"><Layers3 size={24} /><strong>Your shelves are waiting.</strong><p>Start with Sneakers, Clothing, Watches, or name something only you collect.</p></div>}
+        {visibleCards.length === 0 && <div className="catalog-empty"><Layers3 size={24} /><strong>No collections match that view.</strong><p>Try another search or clear your filters to see the rest of your shelves.</p></div>}
         <button className="new-collection-card" onClick={onCreate}><span><Plus size={24} /></span><strong>Start something new</strong><small>Use a category or name your own.</small></button>
       </div>
     </>
@@ -876,14 +915,15 @@ function CommentActionSheet({ comment, onClose, onReply }: { comment: CommentRep
   return <motion.div className="comment-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="comment-action-sheet" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.97 }} transition={{ type: "spring", damping: 25, stiffness: 340 }} onClick={(event) => event.stopPropagation()}><div className="comment-action-summary"><img src={comment.avatar} alt="" /><span><strong>{comment.name}</strong><small>@{comment.handle}</small></span></div><button onClick={onReply}><MessageCircle size={18} /> Reply</button><button onClick={share}><Share2 size={18} /> Share comment</button><button className="danger" onClick={onClose}><Flag size={18} /> Report</button><button className="cancel" onClick={onClose}>Cancel</button></motion.div></motion.div>;
 }
 
-function CreateModal({ onClose, data }: { onClose: () => void; data: CatalogDashboardDTO }) {
+function CreateModal({ onClose, data, initialCollectionId, initialSubcollectionId }: { onClose: () => void; data: CatalogDashboardDTO; initialCollectionId?: string; initialSubcollectionId?: string }) {
   const [type, setType] = useState<"Item" | "Collection" | "Post">("Item");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("public");
   const [templateId, setTemplateId] = useState("");
-  const [collectionId, setCollectionId] = useState(data.collections[0]?.id ?? "");
-  const [subcollectionId, setSubcollectionId] = useState("");
+  const requestedCollection = data.collections.find((collection) => collection.id === initialCollectionId);
+  const [collectionId, setCollectionId] = useState(requestedCollection?.id ?? data.collections[0]?.id ?? "");
+  const [subcollectionId, setSubcollectionId] = useState(() => requestedCollection?.subcollections.some((entry) => entry.id === initialSubcollectionId) ? initialSubcollectionId ?? "" : "");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");

@@ -131,6 +131,64 @@ export type Database = {
           },
         ]
       }
+      catalog_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          item_id: string | null
+          subcollection_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          item_id?: string | null
+          subcollection_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          item_id?: string | null
+          subcollection_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_comments_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_comments_subcollection_id_fkey"
+            columns: ["subcollection_id"]
+            isOneToOne: false
+            referencedRelation: "subcollections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       collection_likes: {
         Row: {
           collection_id: string
@@ -1321,6 +1379,39 @@ export type Database = {
           },
           {
             foreignKeyName: "share_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcollection_likes: {
+        Row: {
+          created_at: string
+          subcollection_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          subcollection_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          subcollection_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcollection_likes_subcollection_id_fkey"
+            columns: ["subcollection_id"]
+            isOneToOne: false
+            referencedRelation: "subcollections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcollection_likes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"

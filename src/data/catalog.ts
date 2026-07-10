@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentIdentity } from "@/data/auth";
 import type {
   CatalogDashboardDTO,
+  CatalogCommentDTO,
   CollectionDTO,
   ItemDTO,
   SubcollectionDTO,
@@ -43,6 +44,9 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     collectionsResult,
     subcollectionsResult,
     itemsResult,
+    itemLikesResult,
+    subcollectionLikesResult,
+    catalogCommentsResult,
     followersResult,
     followingResult,
   ] = await Promise.all([
@@ -59,7 +63,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       .order("updated_at", { ascending: false }),
     supabase
       .from("subcollections")
-      .select("id, collection_id, name, slug, description, kind, visibility, position")
+      .select("id, collection_id, name, slug, description, kind, cover_path, visibility, position")
       .eq("user_id", identity.id)
       .order("position"),
     supabase
@@ -67,6 +71,17 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       .select("id, collection_id, subcollection_id, title, description, brand, model, year, condition, mood, is_favorite, visibility, created_at, item_media(storage_path, position)")
       .eq("user_id", identity.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("item_likes")
+      .select("item_id, user_id"),
+    supabase
+      .from("subcollection_likes")
+      .select("subcollection_id, user_id"),
+    supabase
+      .from("catalog_comments")
+      .select("id, item_id, subcollection_id, author_id, body, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
     supabase
       .from("follows")
       .select("*", { count: "exact", head: true })
@@ -87,7 +102,10 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
   const coverPaths = (collectionsResult.data ?? [])
     .map((collection) => collection.cover_path)
     .filter((path): path is string => Boolean(path));
-  const signedPaths = [...new Set([...mediaPaths, ...coverPaths])];
+  const subcollectionCoverPaths = (subcollectionsResult.data ?? [])
+    .map((subcollection) => subcollection.cover_path)
+    .filter((path): path is string => Boolean(path));
+  const signedPaths = [...new Set([...mediaPaths, ...coverPaths, ...subcollectionCoverPaths])];
   const signedUrlByPath = new Map<string, string>();
 
   if (signedPaths.length > 0) {
@@ -101,6 +119,36 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     });
   }
 
+  const itemLikeCounts = new Map<string, number>();
+  const likedItemIds = new Set<string>();
+  (itemLikesResult.data ?? []).forEach((like) => {
+    itemLikeCounts.set(like.item_id, (itemLikeCounts.get(like.item_id) ?? 0) + 1);
+    if (like.user_id === identity.id) likedItemIds.add(like.item_id);
+  });
+
+  const subcollectionLikeCounts = new Map<string, number>();
+  const likedSubcollectionIds = new Set<string>();
+  (subcollectionLikesResult.data ?? []).forEach((like) => {
+    subcollectionLikeCounts.set(like.subcollection_id, (subcollectionLikeCounts.get(like.subcollection_id) ?? 0) + 1);
+    if (like.user_id === identity.id) likedSubcollectionIds.add(like.subcollection_id);
+  });
+
+  const comments: CatalogCommentDTO[] = (catalogCommentsResult.data ?? []).map((comment) => ({
+    id: comment.id,
+    itemId: comment.item_id,
+    subcollectionId: comment.subcollection_id,
+    authorId: comment.author_id,
+    body: comment.body,
+    createdAt: comment.created_at,
+    isOwn: comment.author_id === identity.id,
+  }));
+  const itemCommentCounts = new Map<string, number>();
+  const subcollectionCommentCounts = new Map<string, number>();
+  comments.forEach((comment) => {
+    if (comment.itemId) itemCommentCounts.set(comment.itemId, (itemCommentCounts.get(comment.itemId) ?? 0) + 1);
+    if (comment.subcollectionId) subcollectionCommentCounts.set(comment.subcollectionId, (subcollectionCommentCounts.get(comment.subcollectionId) ?? 0) + 1);
+  });
+
   const subcollections: SubcollectionDTO[] = (subcollectionsResult.data ?? []).map((entry) => ({
     id: entry.id,
     collectionId: entry.collection_id,
@@ -108,13 +156,20 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     slug: entry.slug,
     description: entry.description,
     kind: entry.kind as SubcollectionDTO["kind"],
+    coverPath: entry.cover_path,
+    coverUrl: entry.cover_path ? signedUrlByPath.get(entry.cover_path) ?? null : null,
     visibility: entry.visibility,
     position: entry.position,
+    likeCount: subcollectionLikeCounts.get(entry.id) ?? 0,
+    likedByViewer: likedSubcollectionIds.has(entry.id),
+    commentCount: subcollectionCommentCounts.get(entry.id) ?? 0,
   }));
 
   const items: ItemDTO[] = (itemsResult.data ?? []).map((item) => {
     const orderedMedia = [...(item.item_media ?? [])].sort((a, b) => a.position - b.position);
-    const firstPath = orderedMedia[0]?.storage_path ?? null;
+    const imageUrls = orderedMedia
+      .map((media) => signedUrlByPath.get(media.storage_path))
+      .filter((url): url is string => Boolean(url));
     return {
       id: item.id,
       collectionId: item.collection_id,
@@ -128,8 +183,12 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       mood: item.mood,
       isFavorite: item.is_favorite,
       visibility: item.visibility,
-      imageUrl: firstPath ? signedUrlByPath.get(firstPath) ?? null : null,
+      imageUrl: imageUrls[0] ?? null,
+      imageUrls,
       imageCount: orderedMedia.length,
+      likeCount: itemLikeCounts.get(item.id) ?? 0,
+      likedByViewer: likedItemIds.has(item.id),
+      commentCount: itemCommentCounts.get(item.id) ?? 0,
       createdAt: item.created_at,
     };
   });
@@ -147,6 +206,11 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     updatedAt: collection.updated_at,
     subcollections: subcollections.filter((entry) => entry.collectionId === collection.id),
     items: items.filter((item) => item.collectionId === collection.id),
+    comments: comments.filter((comment) => {
+      const belongsToItem = comment.itemId ? items.some((item) => item.collectionId === collection.id && item.id === comment.itemId) : false;
+      const belongsToSubcollection = comment.subcollectionId ? subcollections.some((entry) => entry.collectionId === collection.id && entry.id === comment.subcollectionId) : false;
+      return belongsToItem || belongsToSubcollection;
+    }),
   }));
 
   const profile = profileResult.data;

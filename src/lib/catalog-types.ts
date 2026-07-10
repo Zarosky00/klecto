@@ -38,8 +38,13 @@ export type SubcollectionDTO = {
   slug: string;
   description: string | null;
   kind: "brand" | "series" | "era" | "custom";
+  coverPath: string | null;
+  coverUrl: string | null;
   visibility: Visibility | null;
   position: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
 };
 
 export type ItemDTO = {
@@ -56,8 +61,22 @@ export type ItemDTO = {
   isFavorite: boolean;
   visibility: Visibility | null;
   imageUrl: string | null;
+  imageUrls: string[];
   imageCount: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
   createdAt: string;
+};
+
+export type CatalogCommentDTO = {
+  id: string;
+  itemId: string | null;
+  subcollectionId: string | null;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  isOwn: boolean;
 };
 
 export type CollectionDTO = {
@@ -73,6 +92,7 @@ export type CollectionDTO = {
   updatedAt: string;
   subcollections: SubcollectionDTO[];
   items: ItemDTO[];
+  comments: CatalogCommentDTO[];
 };
 
 export type CatalogDashboardDTO = {

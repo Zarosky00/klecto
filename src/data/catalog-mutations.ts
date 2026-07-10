@@ -39,11 +39,25 @@ export type CollectionShareMutationInput = {
 };
 
 export type SubcollectionMutationInput = {
+  id?: string;
   collectionId: string;
   name: string;
   description: string | null;
   kind: "brand" | "series" | "era" | "custom";
   visibility: Visibility | null;
+  /** Undefined means "leave the current cover alone"; null removes it. */
+  coverPath?: string | null;
+};
+
+export type CatalogReactionMutationInput = {
+  targetId: string;
+  active: boolean;
+};
+
+export type CatalogCommentMutationInput = {
+  itemId: string | null;
+  subcollectionId: string | null;
+  body: string;
 };
 
 export type ItemMutationInput = {
@@ -59,6 +73,12 @@ export type ItemMutationInput = {
   mood: ItemMood;
   isFavorite: boolean;
   visibility: Visibility | null;
+  mediaPaths: string[];
+};
+
+export type ItemMediaAppendMutationInput = {
+  itemId: string;
+  collectionId: string;
   mediaPaths: string[];
 };
 
@@ -88,6 +108,10 @@ function ownsItemUploadPath(userId: string, path: string) {
 
 function ownsCollectionCoverPath(userId: string, path: string) {
   return path.startsWith(`${userId}/collections/`) && ownsStoragePath(userId, path);
+}
+
+function ownsSubcollectionCoverPath(userId: string, collectionId: string, subcollectionId: string, path: string) {
+  return path.startsWith(`${userId}/collections/${collectionId}/subcollections/${subcollectionId}/`) && ownsStoragePath(userId, path);
 }
 
 export async function updateProfileMutation(input: ProfileMutationInput): Promise<ActionResult> {
@@ -341,6 +365,20 @@ export async function createSubcollectionMutation(input: SubcollectionMutationIn
 export async function deleteSubcollectionMutation(subcollectionId: string): Promise<ActionResult> {
   const context = await authenticatedClient();
   if (!context) return { ok: false, error: "Sign in to edit subcollections." };
+
+  const { data: subcollection } = await context.supabase
+    .from("subcollections")
+    .select("id, cover_path")
+    .eq("id", subcollectionId)
+    .eq("user_id", context.identity.id)
+    .maybeSingle();
+  if (!subcollection) return { ok: false, error: "Subcollection not found." };
+
+  if (subcollection.cover_path) {
+    const { error: storageError } = await context.supabase.storage.from("collection-media").remove([subcollection.cover_path]);
+    if (storageError) return { ok: false, error: "Could not remove the subcollection cover." };
+  }
+
   const { error } = await context.supabase
     .from("subcollections")
     .delete()
@@ -348,6 +386,82 @@ export async function deleteSubcollectionMutation(subcollectionId: string): Prom
     .eq("user_id", context.identity.id);
   if (error) return { ok: false, error: "Could not delete the subcollection." };
   return { ok: true, id: subcollectionId };
+}
+
+export async function updateSubcollectionMutation(input: SubcollectionMutationInput & { id: string }): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to edit a subcollection." };
+
+  if (input.coverPath && !ownsSubcollectionCoverPath(context.identity.id, input.collectionId, input.id, input.coverPath)) {
+    return { ok: false, error: "That subcollection cover does not belong to your account." };
+  }
+
+  const updates: {
+    name: string;
+    description: string | null;
+    kind: "brand" | "series" | "era" | "custom";
+    visibility: Visibility | null;
+    cover_path?: string | null;
+  } = {
+    name: input.name,
+    description: input.description,
+    kind: input.kind,
+    visibility: input.visibility,
+  };
+  if (input.coverPath !== undefined) updates.cover_path = input.coverPath;
+
+  const { data, error } = await context.supabase
+    .from("subcollections")
+    .update(updates)
+    .eq("id", input.id)
+    .eq("collection_id", input.collectionId)
+    .eq("user_id", context.identity.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: "Subcollection not found or not editable." };
+  return { ok: true, id: data.id };
+}
+
+export async function setItemLikeMutation(input: CatalogReactionMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to like an item." };
+
+  const query = input.active
+    ? context.supabase.from("item_likes").upsert({ item_id: input.targetId, user_id: context.identity.id }, { onConflict: "item_id,user_id", ignoreDuplicates: true })
+    : context.supabase.from("item_likes").delete().eq("item_id", input.targetId).eq("user_id", context.identity.id);
+  const { error } = await query;
+  if (error) return { ok: false, error: "Could not update the item like." };
+  return { ok: true, id: input.targetId };
+}
+
+export async function setSubcollectionLikeMutation(input: CatalogReactionMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to like a subcollection." };
+
+  const query = input.active
+    ? context.supabase.from("subcollection_likes").upsert({ subcollection_id: input.targetId, user_id: context.identity.id }, { onConflict: "subcollection_id,user_id", ignoreDuplicates: true })
+    : context.supabase.from("subcollection_likes").delete().eq("subcollection_id", input.targetId).eq("user_id", context.identity.id);
+  const { error } = await query;
+  if (error) return { ok: false, error: "Could not update the subcollection like." };
+  return { ok: true, id: input.targetId };
+}
+
+export async function createCatalogCommentMutation(input: CatalogCommentMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to add a comment." };
+
+  const { data, error } = await context.supabase
+    .from("catalog_comments")
+    .insert({
+      author_id: context.identity.id,
+      item_id: input.itemId,
+      subcollection_id: input.subcollectionId,
+      body: input.body,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: "Could not add the comment." };
+  return { ok: true, id: data.id };
 }
 
 export async function createItemMutation(input: ItemMutationInput): Promise<ActionResult> {
@@ -455,6 +569,50 @@ export async function updateItemMutation(input: ItemMutationInput & { id: string
     .maybeSingle();
   if (error || !data) return { ok: false, error: "Item not found or not editable." };
   return { ok: true, id: data.id };
+}
+
+export async function appendItemMediaMutation(input: ItemMediaAppendMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to add item photos." };
+  if (input.mediaPaths.length === 0 || input.mediaPaths.some((path) => !ownsItemUploadPath(context.identity.id, path))) {
+    return { ok: false, error: "One or more item photos are invalid." };
+  }
+
+  const { data: item } = await context.supabase
+    .from("items")
+    .select("id")
+    .eq("id", input.itemId)
+    .eq("collection_id", input.collectionId)
+    .eq("user_id", context.identity.id)
+    .maybeSingle();
+  if (!item) return { ok: false, error: "Item not found or not editable." };
+
+  const { data: existingMedia } = await context.supabase
+    .from("item_media")
+    .select("storage_path, position")
+    .eq("item_id", input.itemId)
+    .order("position", { ascending: false });
+  if ((existingMedia?.length ?? 0) + input.mediaPaths.length > 8) {
+    return { ok: false, error: "An item can have up to eight photos." };
+  }
+  const nextPosition = (existingMedia?.[0]?.position ?? -1) + 1;
+
+  const { data: referencedMedia } = await context.supabase
+    .from("item_media")
+    .select("storage_path")
+    .in("storage_path", input.mediaPaths);
+  if (referencedMedia?.length) return { ok: false, error: "One or more photos are already attached to an item." };
+
+  const { error } = await context.supabase.from("item_media").insert(
+    input.mediaPaths.map((storagePath, index) => ({
+      item_id: input.itemId,
+      user_id: context.identity.id,
+      storage_path: storagePath,
+      position: nextPosition + index,
+    })),
+  );
+  if (error) return { ok: false, error: "Could not attach the new item photos." };
+  return { ok: true, id: input.itemId };
 }
 
 export async function deleteItemMutation(itemId: string): Promise<ActionResult> {
