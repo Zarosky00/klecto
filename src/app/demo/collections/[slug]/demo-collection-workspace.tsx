@@ -2,7 +2,7 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -16,13 +16,17 @@ import {
   ImagePlus,
   Layers3,
   LockKeyhole,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   MoreHorizontal,
   Pencil,
   Plus,
   Save,
+  Search,
   Send,
   Share2,
+  SlidersHorizontal,
   Sparkles,
   Star,
   Trash2,
@@ -127,10 +131,12 @@ async function shareDemoTarget(title: string, text: string, url: string) {
 export function DemoCollectionWorkspace({ collection, subcollectionId }: { collection: DemoCollection; subcollectionId?: string }) {
   const subcollection = subcollectionId ? collection.subcollections.find((entry) => entry.id === subcollectionId) : null;
   if (subcollection) return <DemoSubcollectionWorkspace collection={collection} subcollection={subcollection} />;
-  return <DemoCollectionDashboard collection={collection} />;
+  return <DemoCollectionDashboardCurated collection={collection} />;
 }
 
-function DemoCollectionDashboard({ collection }: { collection: DemoCollection }) {
+// Retained only as a reference while the curated collection experience replaces this early prototype.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function DemoCollectionDashboardLegacy({ collection }: { collection: DemoCollection }) {
   const [name, setName] = useState(collection.name);
   const [description, setDescription] = useState(collection.description);
   const [visibility, setVisibility] = useState<Visibility>(collection.visibility);
@@ -179,7 +185,7 @@ function DemoCollectionDashboard({ collection }: { collection: DemoCollection })
       <header className="settings-topbar"><Link href="/"><ArrowLeft size={17} /> Back to Klecto</Link><span className="eyebrow">DEMO COLLECTION</span><span>@{collection.owner.username}</span></header>
       <section className="collection-studio-shell collection-workspace-shell">
         <DemoWorkspaceNote />
-        <section className="studio-hero studio-workspace-hero">
+        <section className="studio-hero studio-workspace-hero collection-showcase demo-collection-showcase">
           <div className="studio-cover studio-editable-cover"><img src={coverUrl} alt={`${name} cover`} /><span>{itemCount} objects</span><label className="studio-cover-edit"><ImagePlus size={16} /> Change cover<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) changeCover(file); event.currentTarget.value = ""; }} /></label></div>
           <div className="studio-hero-copy"><span className="eyebrow">ARJUN&apos;S COLLECTION · {visibilityLabel(visibility)}</span><h1>{name}</h1><p>{description}</p><div className="studio-meta"><span>{subcollections.length} subcollections</span><span>{itemCount} total items</span><span>Updated {formatDate(collection.updatedAt)}</span></div><div className="studio-hero-actions"><button className="secondary-button" onClick={() => void share()}><Share2 size={16} /> Share</button><button className="primary-button" onClick={() => setShowPostComposer((current) => !current)}><Send size={16} /> Post collection</button></div><div className="studio-visibility-pills" aria-label="Demo collection privacy">{(["public", "followers", "private"] as Visibility[]).map((entry) => <button className={visibility === entry ? "active" : ""} key={entry} onClick={() => { setVisibility(entry); setNotice({ type: "success", text: `Demo collection set to ${visibilityLabel(entry).toLowerCase()}.` }); }}>{visibilityIcon(entry)} {visibilityLabel(entry)}</button>)}</div></div>
         </section>
@@ -201,10 +207,82 @@ function DemoCollectionDashboard({ collection }: { collection: DemoCollection })
   );
 }
 
+function DemoCollectionDashboardCurated({ collection }: { collection: DemoCollection }) {
+  const [name, setName] = useState(collection.name);
+  const [description, setDescription] = useState(collection.description);
+  const [visibility, setVisibility] = useState<Visibility>(collection.visibility);
+  const [coverUrl, setCoverUrl] = useState(collection.coverUrl);
+  const [subcollections, setSubcollections] = useState(collection.subcollections);
+  const [directItems, setDirectItems] = useState(collection.directItems);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showPostComposer, setShowPostComposer] = useState(false);
+  const [postText, setPostText] = useState("");
+  const [deleted, setDeleted] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [menuSubcollection, setMenuSubcollection] = useState<DemoSubcollection | null>(null);
+  const [editingSubcollection, setEditingSubcollection] = useState<DemoSubcollection | null>(null);
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogKind, setCatalogKind] = useState<"all" | "brand" | "series" | "era" | "custom">("all");
+  const [catalogVisibility, setCatalogVisibility] = useState<Visibility | "inherit" | "all">("all");
+  const [catalogSort, setCatalogSort] = useState<"order" | "recent" | "name" | "items" | "liked">("order");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const itemCount = directItems.length + subcollections.reduce((total, entry) => total + entry.items.length, 0);
+  const visibleSubcollections = useMemo(() => {
+    const normalizedQuery = catalogQuery.trim().toLocaleLowerCase();
+    return [...subcollections]
+      .filter((entry) => {
+        const effectiveVisibility = entry.visibility ?? "inherit";
+        const searchable = [entry.name, entry.description, entry.kind, ...entry.items.flatMap((item) => [item.title, item.brand ?? "", item.details, item.description])].join(" ").toLocaleLowerCase();
+        return (catalogKind === "all" || entry.kind === catalogKind)
+          && (catalogVisibility === "all" || effectiveVisibility === catalogVisibility)
+          && (!normalizedQuery || searchable.includes(normalizedQuery));
+      })
+      .sort((left, right) => {
+        if (catalogSort === "name") return left.name.localeCompare(right.name);
+        if (catalogSort === "items") return right.items.length - left.items.length || left.name.localeCompare(right.name);
+        if (catalogSort === "liked") return right.likeCount - left.likeCount || left.name.localeCompare(right.name);
+        if (catalogSort === "recent") return (right.items[0]?.createdAt ?? "").localeCompare(left.items[0]?.createdAt ?? "");
+        return left.position - right.position;
+      });
+  }, [catalogKind, catalogQuery, catalogSort, catalogVisibility, subcollections]);
+
+  const changeCover = (file: File) => {
+    if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) return setNotice({ type: "error", text: "Choose an image under 15 MB for the demo cover." });
+    setCoverUrl(URL.createObjectURL(file));
+    setNotice({ type: "success", text: "Cover updated locally in the demo." });
+  };
+  const share = async () => {
+    try {
+      const usedNativeShare = await shareDemoTarget(`${name} · Klecto`, description, `${window.location.origin}/demo/collections/${collection.slug}`);
+      setNotice({ type: "success", text: usedNativeShare ? "Share sheet opened." : "Demo collection link copied." });
+    } catch (error) {
+      if ((error as DOMException).name !== "AbortError") setNotice({ type: "error", text: "The demo collection could not be shared." });
+    }
+  };
+  const addSubcollection = () => {
+    const next: DemoSubcollection = { id: `demo-section-${crypto.randomUUID()}`, name: "New section", description: "A new space in this collection.", kind: "custom", visibility: null, position: subcollections.length, coverUrl, likeCount: 0, commentCount: 0, likedByViewer: false, items: [] };
+    setSubcollections((current) => [...current, next]);
+    setEditingSubcollection(next);
+  };
+
+  if (deleted) return <main className="collection-studio-page"><header className="settings-topbar"><Link href="/"><ArrowLeft size={17} /> Back to Klecto</Link><span className="eyebrow">DEMO COLLECTION</span><span>@{collection.owner.username}</span></header><section className="collection-studio-shell demo-deleted-state"><Layers3 size={28} /><span className="eyebrow">DEMO CHANGE</span><h1>{name} was removed.</h1><p>That action is local to the sample account. Refresh this page to restore Arjun&apos;s starting shelf.</p><div><button className="secondary-button" onClick={() => window.location.reload()}>Restore demo</button><Link className="primary-button" href="/">Back to Klecto</Link></div></section></main>;
+
+  return <main className="collection-studio-page"><header className="settings-topbar"><Link href="/"><ArrowLeft size={17} /> Back to Klecto</Link><span className="eyebrow">DEMO COLLECTION</span><span>@{collection.owner.username}</span></header><section className="collection-studio-shell collection-workspace-shell collection-showcase-shell"><DemoWorkspaceNote />
+    <section className="collection-showcase collection-showcase-curated"><div className="collection-showcase-cover"><img src={coverUrl} alt={`${name} cover`} /><div className="collection-showcase-cover-shade" /><span>{itemCount} objects</span><label className="studio-cover-edit"><ImagePlus size={16} /> Change cover<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) changeCover(file); event.currentTarget.value = ""; }} /></label></div><div className="collection-showcase-copy"><span className="eyebrow">ARJUN&apos;S SHELF · {visibilityLabel(visibility)}</span><h1>{name}</h1><p>{description}</p><div className="collection-showcase-stats"><span><strong>{subcollections.length}</strong> sections</span><span><strong>{itemCount}</strong> objects</span><span><strong>{collection.updatedAt ? shortDate(collection.updatedAt) : "Now"}</strong> updated</span></div></div><div className="collection-showcase-owner"><button className="collection-owner-menu-trigger" onClick={() => setOwnerMenuOpen((current) => !current)} aria-expanded={ownerMenuOpen} aria-label="Collection options"><MoreHorizontal size={19} /></button>{ownerMenuOpen ? <div className="collection-owner-menu" role="dialog" aria-label="Collection options"><button onClick={() => { setOwnerMenuOpen(false); void share(); }}><Share2 size={16} /> Share collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowPostComposer(true); }}><Send size={16} /> Post collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowSettings(true); }}><Pencil size={16} /> Edit collection</button><span>Visibility</span><div>{(["public", "followers", "private"] as Visibility[]).map((entry) => <button className={visibility === entry ? "active" : ""} key={entry} onClick={() => { setVisibility(entry); setNotice({ type: "success", text: `Demo collection set to ${visibilityLabel(entry).toLowerCase()}.` }); }}>{visibilityIcon(entry)} {visibilityLabel(entry)}</button>)}</div><button className="danger" onClick={() => { setOwnerMenuOpen(false); if (window.confirm(`Delete "${name}" from this demo?`)) setDeleted(true); }}><Trash2 size={16} /> Delete collection</button></div> : null}</div></section>
+    {showPostComposer ? <section className="studio-post-composer collection-showcase-post"><div><span className="eyebrow">SHARE TO YOUR PROFILE</span><h2>Give the shelf a line of context.</h2><p>This sample post is local to the current browser session.</p></div><textarea value={postText} onChange={(event) => setPostText(event.target.value)} placeholder="What makes this collection worth sharing? (optional)" /><footer><button className="text-button" onClick={() => setShowPostComposer(false)}><X size={15} /> Cancel</button><button className="primary-button" onClick={() => { setPostText(""); setShowPostComposer(false); setNotice({ type: "success", text: "Demo post published to Arjun&apos;s sample profile." }); }}><Send size={16} /> Publish post</button></footer></section> : null}
+    <section className="collection-catalog"><div className="collection-catalog-head"><div><span className="eyebrow">THE SHELVES</span><h2>Browse the collection</h2><p>Search the pieces inside, then open a shelf when you want the full story.</p></div><div className="collection-catalog-actions"><button className="secondary-button" onClick={() => setNotice({ type: "success", text: "Choose a section to add a new item in this interactive demo." })}><Plus size={16} /> Add item</button><button className="primary-button" onClick={addSubcollection}><Plus size={16} /> New section</button></div></div><div className="collection-catalog-toolbar"><label className="collection-catalog-search"><Search size={17} /><input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search sections, items, or brands" aria-label="Search this collection" />{catalogQuery ? <button type="button" onClick={() => setCatalogQuery("")} aria-label="Clear search"><X size={15} /></button> : null}</label><label className="collection-catalog-sort"><span>Sort</span><select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as typeof catalogSort)} aria-label="Sort sections"><option value="order">Collection order</option><option value="recent">Recent activity</option><option value="name">Name A-Z</option><option value="items">Most items</option><option value="liked">Most liked</option></select></label><div className="collection-catalog-filter-wrap"><button className={`collection-catalog-filter ${catalogKind !== "all" || catalogVisibility !== "all" ? "active" : ""}`} onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen}><SlidersHorizontal size={17} /> Filter</button>{filtersOpen ? <div className="collection-catalog-filter-popover" role="dialog" aria-label="Filter sections"><span>Type</span><div>{(["all", "brand", "series", "era", "custom"] as const).map((entry) => <button className={catalogKind === entry ? "active" : ""} key={entry} onClick={() => setCatalogKind(entry)}>{entry === "all" ? "Everything" : entry}</button>)}</div><span>Visibility</span><div>{(["all", "inherit", "public", "followers", "private"] as const).map((entry) => <button className={catalogVisibility === entry ? "active" : ""} key={entry} onClick={() => setCatalogVisibility(entry)}>{entry === "all" ? "Any visibility" : entry === "inherit" ? "Inherits collection" : visibilityLabel(entry)}</button>)}</div></div> : null}</div></div><div className="collection-catalog-results"><span>{visibleSubcollections.length === subcollections.length ? `${subcollections.length} section${subcollections.length === 1 ? "" : "s"}` : `${visibleSubcollections.length} of ${subcollections.length} sections`}</span>{catalogQuery || catalogKind !== "all" || catalogVisibility !== "all" ? <button onClick={() => { setCatalogQuery(""); setCatalogKind("all"); setCatalogVisibility("all"); }}>Clear filters</button> : null}</div><div className="subcollection-route-grid collection-catalog-grid">{visibleSubcollections.map((entry, index) => <DemoSubcollectionCard key={entry.id} collection={collection} subcollection={entry} index={index} visibility={visibility} onOpenMenu={() => setMenuSubcollection(entry)} />)}{visibleSubcollections.length === 0 ? <div className="studio-empty subcollection-empty"><Layers3 size={25} /><strong>No sections match that view.</strong><p>Try another search or clear the filters.</p></div> : null}</div></section>
+    {showSettings ? <section className="settings-card studio-settings studio-details-card collection-showcase-settings"><div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>Changes stay in this demo until you refresh.</p></div></div><div className="settings-form-grid"><label><span>Name</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} /></label></div><div className="studio-actions"><button className="danger-button" onClick={() => { if (window.confirm(`Delete "${name}" from this demo?`)) setDeleted(true); }}><Trash2 size={16} /> Delete collection</button><button className="primary-button" onClick={() => { setShowSettings(false); setNotice({ type: "success", text: "Demo collection settings saved locally." }); }}><Save size={16} /> Save settings</button></div></section> : null}
+    {directItems.length ? <section className="studio-items-section studio-direct-items collection-unsorted-section"><div className="studio-section-head"><div><span className="eyebrow">UNSORTED</span><h2>Items waiting for a shelf</h2></div></div><DemoCompactItemGrid items={directItems} onDelete={(item) => { if (window.confirm(`Delete "${item.title}" from this demo?`)) { setDirectItems((current) => current.filter((candidate) => candidate.id !== item.id)); setNotice({ type: "success", text: "Item removed locally in the demo." }); } }} emptyTitle="Everything is neatly grouped." emptyBody="Open a section to browse its items." /></section> : null}
+    <AnimatePresence>{menuSubcollection ? <DemoActionSheet title={menuSubcollection.name} subtitle="SECTION DETAILS" note={menuSubcollection.description} onClose={() => setMenuSubcollection(null)} onEdit={() => { setEditingSubcollection(menuSubcollection); setMenuSubcollection(null); }} onShare={() => void share()} onDelete={() => { const target = menuSubcollection; setMenuSubcollection(null); if (window.confirm(`Delete "${target.name}" from this demo?`)) { setSubcollections((current) => current.filter((entry) => entry.id !== target.id)); setNotice({ type: "success", text: "Section removed locally in the demo." }); } }} /> : null}{editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={editingSubcollection} onClose={() => setEditingSubcollection(null)} onSaved={(patch) => { setSubcollections((current) => current.map((entry) => entry.id === editingSubcollection.id ? { ...entry, ...patch } : entry)); setEditingSubcollection(null); setNotice({ type: "success", text: "Section details and cover saved locally." }); }} /> : null}</AnimatePresence>
+    {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
+  </section></main>;
+}
+
 function DemoSubcollectionCard({ collection, subcollection, index, visibility, onOpenMenu }: { collection: DemoCollection; subcollection: DemoSubcollection; index: number; visibility: Visibility; onOpenMenu: () => void }) {
   const press = useLongPress(onOpenMenu);
   return (
-    <motion.article className="subcollection-route-card demo-subcollection-card" {...press} onContextMenu={(event) => event.preventDefault()} whileTap={{ scale: 0.992 }}>
+    <motion.article className="subcollection-route-card demo-subcollection-card curator-subcollection-card" {...press} onContextMenu={(event) => event.preventDefault()} whileTap={{ scale: 0.992 }}>
       <Link href={`/demo/collections/${collection.slug}/subcollections/${subcollection.id}`} className="subcollection-route-link" onClick={(event) => { if (press.preventClickAfterLongPress()) event.preventDefault(); }}>
         <div className="subcollection-route-image">{subcollection.coverUrl ? <img src={subcollection.coverUrl} alt="" /> : <Layers3 size={23} />}<span>{String(index + 1).padStart(2, "0")}</span></div>
         <div><small>{subcollection.kind} · {subcollection.visibility ? visibilityLabel(subcollection.visibility) : `inherits ${visibilityLabel(visibility)}`}</small><h3>{subcollection.name}</h3><p>{subcollection.description}</p><strong>{subcollection.items.length} {subcollection.items.length === 1 ? "item" : "items"} <ChevronRight size={15} /></strong><div className="catalog-reactions subcollection-card-reactions"><span><Heart size={14} fill={subcollection.likedByViewer ? "currentColor" : "none"} /> {subcollection.likeCount}</span><span><MessageCircle size={14} /> {subcollection.commentCount}</span></div></div>
@@ -372,14 +450,78 @@ function DemoCompactItemGrid({ items, onDelete, emptyTitle, emptyBody }: { items
   return <div className="studio-item-grid">{items.map((item) => <article key={item.id}><div className="studio-item-image">{item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Layers3 />}{item.isFavorite ? <i><Star size={13} fill="currentColor" /></i> : null}{item.visibility === "private" ? <span><LockKeyhole size={13} /></span> : null}</div><div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.details || item.description}</p><div className="catalog-reactions"><span><Heart size={14} fill={item.likedByViewer ? "currentColor" : "none"} /> {item.likeCount}</span><span><MessageCircle size={14} /> {item.commentCount}</span></div><button onClick={() => onDelete(item)}><Trash2 size={14} /> Delete</button></div></article>)}{items.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>{emptyTitle}</strong><p>{emptyBody}</p></div> : null}</div>;
 }
 
-function DemoActionSheet({ title, subtitle, onClose, onEdit, onShare, onDelete }: { title: string; subtitle: string; onClose: () => void; onEdit: () => void; onShare: () => void; onDelete: () => void }) {
-  return <motion.div className="catalog-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-action-sheet" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }} transition={{ type: "spring", damping: 27, stiffness: 320 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">{subtitle}</span><h2>{title}</h2><button onClick={onEdit}><Pencil size={18} /> Edit</button><button onClick={onShare}><Share2 size={18} /> Share</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete</button><button className="cancel" onClick={onClose}>Cancel</button></motion.section></motion.div>;
+function DemoActionSheet({ title, subtitle, note, onClose, onEdit, onShare, onDelete }: { title: string; subtitle: string; note?: string; onClose: () => void; onEdit: () => void; onShare: () => void; onDelete: () => void }) {
+  return <motion.div className="catalog-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-action-sheet" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }} transition={{ type: "spring", damping: 27, stiffness: 320 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">{subtitle}</span><h2>{title}</h2>{note ? <p className="collection-action-summary">{note}</p> : null}<button onClick={onEdit}><Pencil size={18} /> Edit</button><button onClick={onShare}><Share2 size={18} /> Share</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete</button><button className="cancel" onClick={onClose}>Cancel</button></motion.section></motion.div>;
 }
 
 function DemoCommentSheet({ target, comments, ownerName, onClose, onSubmit }: { target: CommentTarget; comments: DemoComment[]; ownerName: string; onClose: () => void; onSubmit: (target: CommentTarget, body: string) => void }) {
   const [draft, setDraft] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const targetComments = comments.filter((comment) => comment.targetType === target.type && comment.targetId === target.id);
-  return <motion.div className="catalog-comment-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-comment-sheet" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ type: "spring", damping: 29, stiffness: 310 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">COMMENTS · DEMO</span><h2>{target.title}</h2></div><button onClick={onClose} aria-label="Close comments"><X size={19} /></button></header><div className="catalog-comment-list">{targetComments.map((comment) => <article key={comment.id}><span>{comment.author}</span><p>{comment.body}</p><small>{shortDate(comment.createdAt)}</small></article>)}{targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {target.type === "item" ? "item" : "subcollection"}.</p></div> : null}</div><form onSubmit={(event) => { event.preventDefault(); const value = draft.trim(); if (!value) return; onSubmit(target, value); setDraft(""); }}><span className="catalog-comment-avatar">{ownerName.slice(0, 1)}</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a comment…" maxLength={2000} /><button className="primary-button" disabled={!draft.trim()}><Send size={16} /> Send</button></form></motion.section></motion.div>;
+  const isItem = target.type === "item";
+
+  return (
+    <motion.div
+      className={`catalog-comment-backdrop${expanded ? " catalog-comment-backdrop--expanded" : ""}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.section
+        className={`catalog-comment-sheet${expanded ? " catalog-comment-sheet--expanded" : ""}`}
+        data-expanded={expanded}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Comments for ${target.title}`}
+        layout
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 18 }}
+        transition={{ type: "spring", damping: 29, stiffness: 310 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span className="eyebrow">COMMENTS · DEMO</span>
+            <h2>{target.title}</h2>
+            {expanded ? <p className="catalog-comment-expanded-meta">{targetComments.length} {targetComments.length === 1 ? "comment" : "comments"} on this {isItem ? "item" : "subcollection"}</p> : null}
+          </div>
+          <div className="catalog-comment-sheet-header-actions">
+            <button
+              className="catalog-comment-expand-toggle"
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              aria-label={expanded ? "Return to compact comments" : "Expand comments"}
+              aria-pressed={expanded}
+              title={expanded ? "Return to compact comments" : "Expand comments"}
+            >
+              {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+            <button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button>
+          </div>
+        </header>
+        <div className={`catalog-comment-list${expanded ? " catalog-comment-list--expanded" : ""}`}>
+          {targetComments.map((comment) => <article key={comment.id}><span>{comment.author}</span><p>{comment.body}</p><small>{shortDate(comment.createdAt)}</small></article>)}
+          {targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {isItem ? "item" : "subcollection"}.</p></div> : null}
+        </div>
+        <form
+          className={`catalog-comment-composer${expanded ? " catalog-comment-composer--expanded" : ""}`}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = draft.trim();
+            if (!value) return;
+            onSubmit(target, value);
+            setDraft("");
+          }}
+        >
+          <span className="catalog-comment-avatar">{ownerName.slice(0, 1)}</span>
+          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`Add a comment about this ${isItem ? "item" : "subcollection"}…`} maxLength={2000} />
+          <button className="primary-button" disabled={!draft.trim()}><Send size={16} /> Send</button>
+        </form>
+      </motion.section>
+    </motion.div>
+  );
 }
 
 function DemoItemEditorSheet({ item, subcollectionName, onClose, onSaved }: { item?: DemoItem; subcollectionName: string; onClose: () => void; onSaved: (item: DemoItem) => void }) {

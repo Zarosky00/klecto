@@ -12,7 +12,9 @@ import {
   ImagePlus,
   Layers3,
   LockKeyhole,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -273,8 +275,72 @@ function CatalogActionSheet({ title, subtitle, onClose, onEdit, onShare, onDelet
 
 function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSubmit }: { target: CommentTarget; viewer: ViewerDTO; comments: CatalogCommentDTO[]; pending: boolean; onClose: () => void; onSubmit: (target: CommentTarget, body: string) => void }) {
   const [draft, setDraft] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const targetComments = comments.filter((comment) => target.type === "item" ? comment.itemId === target.id : comment.subcollectionId === target.id);
-  return <motion.div className="catalog-comment-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-comment-sheet" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ type: "spring", damping: 29, stiffness: 310 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">COMMENTS</span><h2>{target.title}</h2></div><button onClick={onClose} aria-label="Close comments"><X size={19} /></button></header><div className="catalog-comment-list">{targetComments.map((comment) => <article key={comment.id}><span>{comment.isOwn ? viewer.displayName : "Collector"}</span><p>{comment.body}</p><small>{dateLabel(comment.createdAt)}</small></article>)}{targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {target.type === "item" ? "item" : "subcollection"}.</p></div> : null}</div><form onSubmit={(event) => { event.preventDefault(); const value = draft.trim(); if (!value) return; onSubmit(target, value); setDraft(""); }}><img src={viewer.avatarUrl ?? "/favicon.ico"} alt="" /><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a comment…" maxLength={2000} /><button className="primary-button" disabled={pending || !draft.trim()}><Send size={16} /> Send</button></form></motion.section></motion.div>;
+  const isItem = target.type === "item";
+
+  return (
+    <motion.div
+      className={`catalog-comment-backdrop${expanded ? " catalog-comment-backdrop--expanded" : ""}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.section
+        className={`catalog-comment-sheet${expanded ? " catalog-comment-sheet--expanded" : ""}`}
+        data-expanded={expanded}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Comments for ${target.title}`}
+        layout
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 18 }}
+        transition={{ type: "spring", damping: 29, stiffness: 310 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span className="eyebrow">COMMENTS</span>
+            <h2>{target.title}</h2>
+            {expanded ? <p className="catalog-comment-expanded-meta">{targetComments.length} {targetComments.length === 1 ? "comment" : "comments"} on this {isItem ? "item" : "subcollection"}</p> : null}
+          </div>
+          <div className="catalog-comment-sheet-header-actions">
+            <button
+              className="catalog-comment-expand-toggle"
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              aria-label={expanded ? "Return to compact comments" : "Expand comments"}
+              aria-pressed={expanded}
+              title={expanded ? "Return to compact comments" : "Expand comments"}
+            >
+              {expanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+            <button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button>
+          </div>
+        </header>
+        <div className={`catalog-comment-list${expanded ? " catalog-comment-list--expanded" : ""}`}>
+          {targetComments.map((comment) => <article key={comment.id}><span>{comment.isOwn ? viewer.displayName : "Collector"}</span><p>{comment.body}</p><small>{dateLabel(comment.createdAt)}</small></article>)}
+          {targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {isItem ? "item" : "subcollection"}.</p></div> : null}
+        </div>
+        <form
+          className={`catalog-comment-composer${expanded ? " catalog-comment-composer--expanded" : ""}`}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = draft.trim();
+            if (!value) return;
+            onSubmit(target, value);
+            setDraft("");
+          }}
+        >
+          <img src={viewer.avatarUrl ?? "/favicon.ico"} alt="" />
+          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`Add a comment about this ${isItem ? "item" : "subcollection"}…`} maxLength={2000} />
+          <button className="primary-button" disabled={pending || !draft.trim()}><Send size={16} /> Send</button>
+        </form>
+      </motion.section>
+    </motion.div>
+  );
 }
 
 function ItemEditorSheet({ item, collection, subcollection, viewer, onClose, onSaved }: { item: ItemDTO; collection: CollectionDTO; subcollection: SubcollectionDTO; viewer: ViewerDTO; onClose: () => void; onSaved: (message: string) => void }) {

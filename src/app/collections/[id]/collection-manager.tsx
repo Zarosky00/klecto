@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -11,11 +11,14 @@ import {
   ImagePlus,
   Layers3,
   LockKeyhole,
+  MoreHorizontal,
   Pencil,
   Plus,
   Save,
+  Search,
   Send,
   Share2,
+  SlidersHorizontal,
   Star,
   Trash2,
   UsersRound,
@@ -91,6 +94,14 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   const [subVisibility, setSubVisibility] = useState<Visibility | "inherit">("inherit");
   const [showEditor, setShowEditor] = useState(false);
   const [showPostComposer, setShowPostComposer] = useState(false);
+  const [showAddSubcollection, setShowAddSubcollection] = useState(false);
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+  const [selectedSubcollection, setSelectedSubcollection] = useState<SubcollectionDTO | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogKind, setCatalogKind] = useState<"all" | "brand" | "series" | "era" | "custom">("all");
+  const [catalogVisibility, setCatalogVisibility] = useState<Visibility | "inherit" | "all">("all");
+  const [catalogSort, setCatalogSort] = useState<"order" | "recent" | "name" | "items" | "liked">("order");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [postText, setPostText] = useState("");
   const [uploadingCover, setUploadingCover] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -257,6 +268,33 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   };
 
   const ungroupedItems = collection.items.filter((item) => !item.subcollectionId);
+  const visibleSubcollections = useMemo(() => {
+    const normalizedQuery = catalogQuery.trim().toLocaleLowerCase();
+    return collection.subcollections
+      .map((subcollection) => ({
+        subcollection,
+        items: collection.items.filter((item) => item.subcollectionId === subcollection.id),
+      }))
+      .filter(({ subcollection, items }) => {
+        const effectiveVisibility = subcollection.visibility ?? "inherit";
+        const searchText = [
+          subcollection.name,
+          subcollection.description ?? "",
+          subcollection.kind,
+          ...items.flatMap((item) => [item.title, item.brand ?? "", item.model ?? "", item.description ?? ""]),
+        ].join(" ").toLocaleLowerCase();
+        return (catalogKind === "all" || subcollection.kind === catalogKind)
+          && (catalogVisibility === "all" || effectiveVisibility === catalogVisibility)
+          && (!normalizedQuery || searchText.includes(normalizedQuery));
+      })
+      .sort((left, right) => {
+        if (catalogSort === "name") return left.subcollection.name.localeCompare(right.subcollection.name);
+        if (catalogSort === "items") return right.items.length - left.items.length || left.subcollection.name.localeCompare(right.subcollection.name);
+        if (catalogSort === "liked") return right.subcollection.likeCount - left.subcollection.likeCount || left.subcollection.name.localeCompare(right.subcollection.name);
+        if (catalogSort === "recent") return (right.items[0]?.createdAt ?? "").localeCompare(left.items[0]?.createdAt ?? "");
+        return left.subcollection.position - right.subcollection.position;
+      });
+  }, [catalogKind, catalogQuery, catalogSort, catalogVisibility, collection.items, collection.subcollections]);
 
   return (
     <main className="collection-studio-page">
@@ -267,7 +305,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
       </header>
 
       <section className="collection-studio-shell collection-workspace-shell">
-        <section className="studio-hero studio-workspace-hero">
+        <section className="studio-hero studio-workspace-hero collection-showcase">
           <div className={`studio-cover studio-editable-cover ${coverUrl ? "" : "placeholder"}`}>
             {coverUrl ? <img src={coverUrl} alt={`${collection.name} cover`} /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}
             <span>{collection.items.length} {collection.items.length === 1 ? "object" : "objects"}</span>
@@ -298,6 +336,10 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
               {(["public", "followers", "private"] as Visibility[]).map((entry) => <button key={entry} className={visibility === entry ? "active" : ""} onClick={() => changeVisibility(entry)} disabled={pending}>{visibilityIcon(entry)} {displayVisibility(entry)}</button>)}
             </div>
           </div>
+          <div className="collection-showcase-owner">
+            <button className="collection-owner-menu-trigger" onClick={() => setOwnerMenuOpen((current) => !current)} aria-expanded={ownerMenuOpen} aria-label="Collection options"><MoreHorizontal size={19} /></button>
+            {ownerMenuOpen ? <div className="collection-owner-menu" role="dialog" aria-label="Collection options"><button onClick={() => { setOwnerMenuOpen(false); void shareCollection(); }}><Share2 size={16} /> Share collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowPostComposer(true); }}><Send size={16} /> Post collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowEditor(true); }}><Pencil size={16} /> Edit collection</button><span>Visibility</span><div>{(["public", "followers", "private"] as Visibility[]).map((entry) => <button className={visibility === entry ? "active" : ""} key={entry} disabled={pending} onClick={() => changeVisibility(entry)}>{visibilityIcon(entry)} {displayVisibility(entry)}</button>)}</div></div> : null}
+          </div>
         </section>
 
         {showPostComposer ? (
@@ -308,34 +350,40 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
           </section>
         ) : null}
 
-        <section className="studio-route-section">
+        <section className="studio-route-section collection-catalog">
           <div className="studio-section-head workspace-section-head">
             <div><span className="eyebrow">STEP 1 · CHOOSE A SUBCOLLECTION</span><h2>Subcollections</h2><p>Open a subcollection to browse its items on its own page.</p></div>
-            <button className="secondary-button" onClick={() => setShowEditor((current) => !current)}><Pencil size={16} /> {showEditor ? "Close settings" : "Manage collection"}</button>
+            <div className="collection-catalog-actions"><Link className="secondary-button" href={`/?create=item&collection=${collection.id}`}><Plus size={16} /> Add item</Link><button className="primary-button" onClick={() => setShowAddSubcollection((current) => !current)}><Plus size={16} /> New section</button></div>
           </div>
 
-          <div className="subcollection-route-grid">
-            {collection.subcollections.map((entry, index) => {
-              const entries = collection.items.filter((item) => item.subcollectionId === entry.id);
+          <div className="collection-catalog-toolbar">
+            <label className="collection-catalog-search"><Search size={17} /><input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search sections, items, or brands" aria-label="Search this collection" />{catalogQuery ? <button type="button" onClick={() => setCatalogQuery("")} aria-label="Clear search"><X size={15} /></button> : null}</label>
+            <label className="collection-catalog-sort"><span>Sort</span><select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as typeof catalogSort)} aria-label="Sort subcollections"><option value="order">Collection order</option><option value="recent">Recent activity</option><option value="name">Name A-Z</option><option value="items">Most items</option><option value="liked">Most liked</option></select></label>
+            <div className="collection-catalog-filter-wrap"><button className={`collection-catalog-filter ${catalogKind !== "all" || catalogVisibility !== "all" ? "active" : ""}`} onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen}><SlidersHorizontal size={17} /> Filter</button>{filtersOpen ? <div className="collection-catalog-filter-popover" role="dialog" aria-label="Filter subcollections"><span>Type</span><div>{(["all", "brand", "series", "era", "custom"] as const).map((entry) => <button className={catalogKind === entry ? "active" : ""} key={entry} onClick={() => setCatalogKind(entry)}>{entry === "all" ? "Everything" : entry}</button>)}</div><span>Visibility</span><div>{(["all", "inherit", "public", "followers", "private"] as const).map((entry) => <button className={catalogVisibility === entry ? "active" : ""} key={entry} onClick={() => setCatalogVisibility(entry)}>{entry === "all" ? "Any visibility" : entry === "inherit" ? "Inherits collection" : displayVisibility(entry)}</button>)}</div></div> : null}</div>
+          </div>
+          <div className="collection-catalog-results"><span>{visibleSubcollections.length === collection.subcollections.length ? `${collection.subcollections.length} section${collection.subcollections.length === 1 ? "" : "s"}` : `${visibleSubcollections.length} of ${collection.subcollections.length} sections`}</span>{catalogQuery || catalogKind !== "all" || catalogVisibility !== "all" ? <button onClick={() => { setCatalogQuery(""); setCatalogKind("all"); setCatalogVisibility("all"); }}>Clear filters</button> : null}</div>
+
+          <div className="subcollection-route-grid collection-catalog-grid">
+            {visibleSubcollections.map(({ subcollection: entry, items: entries }, index) => {
               const preview = entry.coverUrl ?? entries.find((item) => item.imageUrl)?.imageUrl;
               return (
-                <article className="subcollection-route-card" key={entry.id}>
+                <article className="subcollection-route-card curator-subcollection-card" key={entry.id}>
                   <Link href={`/collections/${collection.id}/subcollections/${entry.id}`} className="subcollection-route-link">
                     <div className={`subcollection-route-image ${preview ? "" : "placeholder"}`}>{preview ? <img src={preview} alt="" /> : <Layers3 size={23} />}<span>{String(index + 1).padStart(2, "0")}</span></div>
                     <div><small>{entry.kind} · {entry.visibility ? displayVisibility(entry.visibility) : `inherits ${displayVisibility(visibility)}`}</small><h3>{entry.name}</h3><p>{entry.description || `${entries.length} objects waiting inside.`}</p><strong>{entries.length} {entries.length === 1 ? "item" : "items"} <ChevronRight size={15} /></strong></div>
                   </Link>
-                  <button className="subcollection-delete" aria-label={`Delete ${entry.name}`} disabled={pending} onClick={() => deleteSubcollection(entry)}><Trash2 size={15} /></button>
+                  <button className="subcollection-delete subcollection-menu-trigger" aria-label={`Options for ${entry.name}`} disabled={pending} onClick={() => setSelectedSubcollection(entry)}><MoreHorizontal size={17} /></button>
                 </article>
               );
             })}
-            {collection.subcollections.length === 0 ? <div className="studio-empty subcollection-empty"><Layers3 size={25} /><strong>No subcollections yet.</strong><p>Create one below to organize this collection by brand, series, era, or anything you choose.</p></div> : null}
+            {visibleSubcollections.length === 0 ? <div className="studio-empty subcollection-empty"><Layers3 size={25} /><strong>No sections match that view.</strong><p>Try another search or clear your filters to browse every part of this collection.</p></div> : null}
           </div>
 
-          <section className="subcollection-create-card">
+          {showAddSubcollection ? <section className="subcollection-create-card">
             <div><span className="eyebrow">ADD A SUBCOLLECTION</span><h3>Organize the next layer.</h3></div>
             <div className="subcollection-create"><input value={subName} onChange={(event) => setSubName(event.target.value)} placeholder="e.g. Nike" maxLength={80} /><select value={subKind} onChange={(event) => setSubKind(event.target.value as typeof subKind)}><option value="brand">Brand</option><option value="series">Series</option><option value="era">Era</option><option value="custom">Custom</option></select><select value={subVisibility} onChange={(event) => setSubVisibility(event.target.value as typeof subVisibility)}><option value="inherit">Inherit privacy</option><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select><button className="primary-button" disabled={pending || !subName.trim()} onClick={createSubcollection}><Plus size={16} /> Create</button></div>
             <textarea className="subcollection-note" value={subDescription} onChange={(event) => setSubDescription(event.target.value)} placeholder="Optional description" maxLength={600} />
-          </section>
+          </section> : null}
         </section>
 
         {showEditor ? (
@@ -346,7 +394,9 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
           </section>
         ) : null}
 
-        <section className="studio-items-section studio-direct-items">
+        {selectedSubcollection ? <div className="catalog-action-backdrop" role="presentation" onClick={() => setSelectedSubcollection(null)}><section className="catalog-action-sheet" role="dialog" aria-modal="true" aria-label={`${selectedSubcollection.name} options`} onClick={(event) => event.stopPropagation()}><span className="eyebrow">SECTION DETAILS</span><h2>{selectedSubcollection.name}</h2><p className="collection-action-summary">{selectedSubcollection.description || "A focused part of this collection."}</p><button onClick={() => { window.location.href = `/collections/${collection.id}/subcollections/${selectedSubcollection.id}`; }}><ChevronRight size={18} /> Open and edit section</button><button className="danger" disabled={pending} onClick={() => { const target = selectedSubcollection; setSelectedSubcollection(null); deleteSubcollection(target); }}><Trash2 size={18} /> Delete section</button><button className="cancel" onClick={() => setSelectedSubcollection(null)}>Cancel</button></section></div> : null}
+
+        {ungroupedItems.length ? <section className="studio-items-section studio-direct-items collection-unsorted-section">
           <div className="studio-section-head"><div><span className="eyebrow">STEP 2 · ITEMS WITHOUT A SUBCOLLECTION</span><h2>{collection.subcollections.length ? "Unsorted items" : "Items"}</h2></div><Link href="/">Add item from Klecto <Plus size={15} /></Link></div>
           <ItemGrid items={ungroupedItems} pending={pending} onDelete={(item) => {
             if (!window.confirm(`Delete “${item.title}”?`)) return;
@@ -357,7 +407,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
               window.setTimeout(() => window.location.reload(), 300);
             });
           }} emptyTitle={collection.subcollections.length ? "Everything is neatly grouped." : "Nothing catalogued yet."} emptyBody={collection.subcollections.length ? "Open a subcollection to browse its items, or add a new item directly to this shelf." : "Add an item from Klecto, then assign it to a subcollection when you are ready."} />
-        </section>
+        </section> : null}
 
         {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
       </section>
