@@ -48,7 +48,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createCollectionAction, createItemAction } from "@/app/actions/catalog";
 import { createClient } from "@/lib/supabase/client";
-import type { CatalogDashboardDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
+import type { CatalogDashboardDTO, CollectionDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
 import {
   collectionCards,
   comments,
@@ -126,8 +126,16 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
 
   const openFeedCollection = (item: FeedItem) => {
+    const collectionName = item.collection.split("/")[0]?.trim() || item.collection;
+    const ownedCollection = initialData.viewer && item.author.handle === initialData.viewer.username
+      ? initialData.collections.find((collection) => collection.name.toLocaleLowerCase() === collectionName.toLocaleLowerCase())
+      : null;
+    if (ownedCollection) {
+      window.location.href = `/collections/${ownedCollection.id}`;
+      return;
+    }
     setCollectionPreview({
-      title: item.collection.split("/")[0]?.trim() || item.collection,
+      title: collectionName,
       subtitle: item.collection,
       count: item.kind === "collection" ? 12 : 1,
       privacy: "Public",
@@ -207,7 +215,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
             {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreview} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}
-            {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} />}
+            {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} collections={initialData.collections} />}
           </motion.div>
       </motion.main>
 
@@ -773,7 +781,7 @@ function ChatActionSheet({ message, canBlock, onClose, onReply, onEdit, onDelete
   return <motion.div className="chat-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="chat-action-sheet" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.97 }} transition={{ type: "spring", damping: 25, stiffness: 340 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">MESSAGE OPTIONS</span><p>{message.body}</p><button onClick={onReply}><MessageCircle size={18} /> Reply</button>{message.direction === "sent" && <><button onClick={onEdit}><Pencil size={18} /> Edit message</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete message</button></>}{message.direction === "received" && canBlock && <button className="danger" onClick={onBlock}><Ban size={18} /> Block collector</button>}<button className="cancel" onClick={onClose}>Cancel</button></motion.div></motion.div>;
 }
 
-function PremiumProfileView({ onOpenCollection, viewer }: { onOpenCollection: (collection: CollectionPreview) => void; viewer: ViewerDTO | null }) {
+function PremiumProfileView({ onOpenCollection, viewer, collections }: { onOpenCollection: (collection: CollectionPreview) => void; viewer: ViewerDTO | null; collections: CollectionDTO[] }) {
   const [tab, setTab] = useState<"Posts" | "Collections" | "Replies" | "Likes" | "Saved">("Posts");
   const displayName = viewer?.displayName ?? "Arjun Kapoor";
   const username = viewer?.username ?? "arjcollects";
@@ -796,9 +804,9 @@ function PremiumProfileView({ onOpenCollection, viewer }: { onOpenCollection: (c
       <div className="profile-tabs profile-premium-tabs" aria-label="Profile content">{(["Posts", "Collections", "Replies", "Likes", "Saved"] as const).map((name) => <button key={name} className={tab === name ? "active" : ""} onClick={() => setTab(name)}>{name}{(name === "Likes" || name === "Saved") && <LockKeyhole size={12} />}</button>)}</div>
       <div className="profile-feed profile-premium-feed">
         {privateTab && <motion.div className="profile-note" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}><LockKeyhole size={16} /><span><strong>Only you can see this.</strong> {tab} stay private to your account.</span></motion.div>}
-        {tab === "Collections" && <motion.div className="profile-collection-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{profileCards.map((card, index) => <motion.button className="profile-collection-card" key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))} whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={{ delay: index * 0.05 }}><img src={card.image} alt="" /><span><small>{card.privacy} shelf</small><strong>{card.title}</strong><em>{card.count} objects <ChevronRight size={15} /></em></span></motion.button>)}</motion.div>}
+        {tab === "Collections" && <motion.div className="profile-collection-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{viewer ? collections.map((collection, index) => <motion.button className="profile-collection-card" key={collection.id} onClick={() => { window.location.href = `/collections/${collection.id}`; }} whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={{ delay: index * 0.05 }}><div className="profile-collection-live-cover">{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <span>{collection.name.slice(0, 2).toUpperCase()}</span>}</div><span><small>{collection.visibility} shelf · {collection.subcollections.length} subcollections</small><strong>{collection.name}</strong><em>{collection.items.length} objects <ChevronRight size={15} /></em></span></motion.button>) : profileCards.map((card, index) => <motion.button className="profile-collection-card" key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))} whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={{ delay: index * 0.05 }}><img src={card.image} alt="" /><span><small>{card.privacy} shelf</small><strong>{card.title}</strong><em>{card.count} objects <ChevronRight size={15} /></em></span></motion.button>)}</motion.div>}
         {tab === "Replies" && <motion.div className="profile-reply-list" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>{comments.map((comment) => <article key={comment.id}><img src={comment.avatar} alt="" /><div><span>Replied to <strong>@{comment.handle}</strong></span><p>Exactly why I keep this shelf: the details get better with time.</p><small>{comment.time} - 12 likes</small></div></article>)}</motion.div>}
-        {(tab === "Posts" || privateTab) && feedItems.slice(privateTab ? 1 : 0, privateTab ? 3 : 2).map((item, index) => <FeedCard key={`${tab}-${item.id}`} item={item} index={index} liked={index === 0} saved={tab === "Saved"} wished={tab === "Likes"} onLike={() => {}} onSave={() => {}} onWish={() => {}} onComment={() => {}} onOpenCollection={(entry) => onOpenCollection({ title: entry.collection.split("/")[0]?.trim() || entry.collection, subtitle: entry.collection, count: 1, privacy: "Public", image: entry.image, ownerHandle: entry.author.handle, ownerName: entry.author.name })} />)}
+        {(tab === "Posts" || privateTab) && feedItems.slice(privateTab ? 1 : 0, privateTab ? 3 : 2).map((item, index) => <FeedCard key={`${tab}-${item.id}`} item={item} index={index} liked={index === 0} saved={tab === "Saved"} wished={tab === "Likes"} onLike={() => {}} onSave={() => {}} onWish={() => {}} onComment={() => {}} onOpenCollection={(entry) => { const collectionName = entry.collection.split("/")[0]?.trim() || entry.collection; const owned = viewer && entry.author.handle === viewer.username ? collections.find((collection) => collection.name.toLocaleLowerCase() === collectionName.toLocaleLowerCase()) : null; if (owned) { window.location.href = `/collections/${owned.id}`; return; } onOpenCollection({ title: collectionName, subtitle: entry.collection, count: 1, privacy: "Public", image: entry.image, ownerHandle: entry.author.handle, ownerName: entry.author.name }); }} />)}
       </div>
     </>
   );

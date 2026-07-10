@@ -23,6 +23,19 @@ export type CollectionMutationInput = {
   description: string | null;
   templateId: string | null;
   visibility: Visibility;
+  /** Undefined means "leave the current cover alone"; null removes it. */
+  coverPath?: string | null;
+};
+
+export type CollectionPostMutationInput = {
+  collectionId: string;
+  body: string | null;
+  visibility: Visibility;
+};
+
+export type CollectionShareMutationInput = {
+  collectionId: string;
+  channel: "copy_link" | "external";
 };
 
 export type SubcollectionMutationInput = {
@@ -71,6 +84,10 @@ function ownsStoragePath(userId: string, path: string) {
 
 function ownsItemUploadPath(userId: string, path: string) {
   return path.startsWith(`${userId}/items/`) && ownsStoragePath(userId, path);
+}
+
+function ownsCollectionCoverPath(userId: string, path: string) {
+  return path.startsWith(`${userId}/collections/`) && ownsStoragePath(userId, path);
 }
 
 export async function updateProfileMutation(input: ProfileMutationInput): Promise<ActionResult> {
@@ -145,14 +162,28 @@ export async function updateCollectionMutation(input: CollectionMutationInput & 
   const context = await authenticatedClient();
   if (!context) return { ok: false, error: "Sign in to edit a collection." };
 
+  if (input.coverPath && !ownsCollectionCoverPath(context.identity.id, input.coverPath)) {
+    return { ok: false, error: "That collection cover does not belong to your account." };
+  }
+
+  const updates: {
+    name: string;
+    description: string | null;
+    template_id: string | null;
+    visibility: Visibility;
+    cover_path?: string | null;
+  } = {
+    name: input.name,
+    description: input.description,
+    template_id: input.templateId,
+    visibility: input.visibility,
+  };
+
+  if (input.coverPath !== undefined) updates.cover_path = input.coverPath;
+
   const { data, error } = await context.supabase
     .from("collections")
-    .update({
-      name: input.name,
-      description: input.description,
-      template_id: input.templateId,
-      visibility: input.visibility,
-    })
+    .update(updates)
     .eq("id", input.id)
     .eq("user_id", context.identity.id)
     .select("id")
@@ -160,6 +191,65 @@ export async function updateCollectionMutation(input: CollectionMutationInput & 
 
   if (error || !data) return { ok: false, error: "Collection not found or not editable." };
   return { ok: true, id: data.id };
+}
+
+export async function createCollectionPostMutation(input: CollectionPostMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to post a collection." };
+
+  const { data: collection } = await context.supabase
+    .from("collections")
+    .select("id, name")
+    .eq("id", input.collectionId)
+    .eq("user_id", context.identity.id)
+    .maybeSingle();
+
+  if (!collection) return { ok: false, error: "Collection not found or not editable." };
+
+  const body = input.body?.trim() || `A closer look at ${collection.name}.`;
+  const { data, error } = await context.supabase
+    .from("posts")
+    .insert({
+      author_id: context.identity.id,
+      kind: "post",
+      body,
+      collection_id: collection.id,
+      visibility: input.visibility,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Collection post failed", error);
+    return { ok: false, error: "Could not publish the collection post." };
+  }
+  return { ok: true, id: data.id };
+}
+
+export async function recordCollectionShareMutation(input: CollectionShareMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to share a collection." };
+
+  const { data: collection } = await context.supabase
+    .from("collections")
+    .select("id")
+    .eq("id", input.collectionId)
+    .eq("user_id", context.identity.id)
+    .maybeSingle();
+
+  if (!collection) return { ok: false, error: "Collection not found or not editable." };
+
+  const { error } = await context.supabase.from("share_events").insert({
+    user_id: context.identity.id,
+    collection_id: collection.id,
+    channel: input.channel,
+  });
+
+  if (error) {
+    console.error("Collection share record failed", error);
+    return { ok: false, error: "The link was created, but the share could not be recorded." };
+  }
+  return { ok: true, id: collection.id };
 }
 
 export async function deleteCollectionMutation(collectionId: string): Promise<ActionResult> {
@@ -222,6 +312,14 @@ export async function createSubcollectionMutation(input: SubcollectionMutationIn
   const slugs = new Set((existing ?? []).map((entry) => entry.slug));
   const slug = slugs.has(baseSlug) ? `${baseSlug}-${crypto.randomUUID().slice(0, 6)}` : baseSlug;
 
+  const { data: lastSubcollection } = await context.supabase
+    .from("subcollections")
+    .select("position")
+    .eq("collection_id", input.collectionId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const { data, error } = await context.supabase
     .from("subcollections")
     .insert({
@@ -232,6 +330,7 @@ export async function createSubcollectionMutation(input: SubcollectionMutationIn
       description: input.description,
       kind: input.kind,
       visibility: input.visibility,
+      position: (lastSubcollection?.position ?? -1) + 1,
     })
     .select("id")
     .single();

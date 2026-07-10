@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   createCollectionMutation,
+  createCollectionPostMutation,
   createItemMutation,
   createSubcollectionMutation,
   deleteCollectionMutation,
   deleteItemMutation,
   deleteSubcollectionMutation,
+  recordCollectionShareMutation,
   updateCollectionMutation,
   updateItemMutation,
   updateProfileMutation,
@@ -32,11 +34,26 @@ const profileSchema = z.object({
 });
 
 const collectionSchema = z.object({
-  id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
   description: nullableText(1000),
   templateId: z.string().uuid().nullable(),
   visibility,
+});
+
+const updateCollectionSchema = collectionSchema.extend({
+  id: z.string().uuid(),
+  coverPath: nullableText(500).optional(),
+});
+
+const collectionPostSchema = z.object({
+  collectionId: z.string().uuid(),
+  body: nullableText(3000),
+  visibility,
+});
+
+const collectionShareSchema = z.object({
+  collectionId: z.string().uuid(),
+  channel: z.enum(["copy_link", "external"]),
 });
 
 const subcollectionSchema = z.object({
@@ -71,10 +88,11 @@ function invalid(error: z.ZodError): ActionResult {
   return { ok: false, error: error.issues[0]?.message ?? "Check the form and try again." };
 }
 
-function refreshCatalog() {
+function refreshCatalog(collectionId?: string) {
   revalidatePath("/");
   revalidatePath("/settings/profile");
   revalidatePath("/collections", "layout");
+  if (collectionId) revalidatePath(`/collections/${collectionId}`);
 }
 
 export async function updateProfileAction(input: unknown): Promise<ActionResult> {
@@ -94,11 +112,25 @@ export async function createCollectionAction(input: unknown): Promise<ActionResu
 }
 
 export async function updateCollectionAction(input: unknown): Promise<ActionResult> {
-  const parsed = collectionSchema.required({ id: true }).safeParse(input);
+  const parsed = updateCollectionSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const result = await updateCollectionMutation(parsed.data);
-  if (result.ok) refreshCatalog();
+  if (result.ok) refreshCatalog(parsed.data.id);
   return result;
+}
+
+export async function createCollectionPostAction(input: unknown): Promise<ActionResult> {
+  const parsed = collectionPostSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createCollectionPostMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
+export async function recordCollectionShareAction(input: unknown): Promise<ActionResult> {
+  const parsed = collectionShareSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return recordCollectionShareMutation(parsed.data);
 }
 
 export async function deleteCollectionAction(id: unknown): Promise<ActionResult> {
@@ -113,7 +145,7 @@ export async function createSubcollectionAction(input: unknown): Promise<ActionR
   const parsed = subcollectionSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const result = await createSubcollectionMutation(parsed.data);
-  if (result.ok) refreshCatalog();
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
   return result;
 }
 
