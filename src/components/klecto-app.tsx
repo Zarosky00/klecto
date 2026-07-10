@@ -42,7 +42,10 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { createCollectionAction, createItemAction } from "@/app/actions/catalog";
+import { createClient } from "@/lib/supabase/client";
+import type { CatalogDashboardDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
 import {
   collectionCards,
   comments,
@@ -70,7 +73,9 @@ const moodLabels = {
   regret: { label: "Regret", icon: Archive },
 };
 
-export function KlectoApp() {
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=85";
+
+export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO }) {
   const [view, setView] = useState<View>("home");
   const [feedMode, setFeedMode] = useState<"For you" | "Following">("For you");
   const [filter, setFilter] = useState<FeedFilter>("Everything");
@@ -99,7 +104,7 @@ export function KlectoApp() {
 
   return (
     <div className="app-frame">
-      <DesktopRail view={view} navigate={navigate} onCreate={() => setCreateOpen(true)} />
+      <DesktopRail view={view} navigate={navigate} onCreate={() => setCreateOpen(true)} viewer={initialData.viewer} />
 
       <header className="mobile-topbar">
         <button className="icon-button" onClick={() => setMobileMenu(true)} aria-label="Open menu">
@@ -107,7 +112,7 @@ export function KlectoApp() {
         </button>
         <Brand compact />
         <button className="avatar-button" onClick={() => navigate("profile")} aria-label="Open profile">
-          <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=100&q=85" alt="Arjun Kapoor" />
+          <img src={initialData.viewer?.avatarUrl ?? DEFAULT_AVATAR} alt={initialData.viewer?.displayName ?? "Klecto profile"} />
         </button>
       </header>
 
@@ -116,7 +121,7 @@ export function KlectoApp() {
           <motion.div className="mobile-menu-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <motion.aside className="mobile-drawer" initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 28, stiffness: 260 }}>
               <div className="drawer-head"><Brand /><button className="icon-button" onClick={() => setMobileMenu(false)} aria-label="Close menu"><X size={20} /></button></div>
-              <UserMini />
+              <UserMini viewer={initialData.viewer} />
               <nav className="drawer-nav">
                 {navItems.map((item) => <NavButton key={item.id} {...item} active={view === item.id} onClick={() => navigate(item.id)} />)}
               </nav>
@@ -146,10 +151,10 @@ export function KlectoApp() {
                 onCreate={() => setCreateOpen(true)}
               />
             )}
-            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} />}
+            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} />}
             {view === "inbox" && <InboxView />}
-            {view === "profile" && <ProfileView onOpenCollection={() => navigate("collections")} />}
+            {view === "profile" && <ProfileView onOpenCollection={() => navigate("collections")} viewer={initialData.viewer} />}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -166,7 +171,7 @@ export function KlectoApp() {
 
       <AnimatePresence>
         {commentItem && <CommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
-        {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
+        {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
       </AnimatePresence>
     </div>
   );
@@ -176,7 +181,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return <div className={`brand ${compact ? "compact" : ""}`}><span className="brand-mark"><i /><i /><i /></span>{!compact && <span>klecto</span>}</div>;
 }
 
-function DesktopRail({ view, navigate, onCreate }: { view: View; navigate: (view: View) => void; onCreate: () => void }) {
+function DesktopRail({ view, navigate, onCreate, viewer }: { view: View; navigate: (view: View) => void; onCreate: () => void; viewer: ViewerDTO | null }) {
   return (
     <aside className="desktop-rail">
       <Brand />
@@ -185,8 +190,8 @@ function DesktopRail({ view, navigate, onCreate }: { view: View; navigate: (view
       </nav>
       <button className="primary-button full" onClick={onCreate}><Plus size={19} /> Add to Klecto</button>
       <div className="rail-spacer" />
-      <button className="quiet-nav"><Settings size={20} /><span>Settings</span></button>
-      <UserMini />
+      <button className="quiet-nav" onClick={() => { window.location.href = viewer ? "/settings/profile" : "/login"; }}><Settings size={20} /><span>Settings</span></button>
+      <UserMini viewer={viewer} />
     </aside>
   );
 }
@@ -195,11 +200,11 @@ function NavButton({ label, icon: Icon, active, onClick }: { label: string; icon
   return <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}><Icon size={21} strokeWidth={active ? 2.4 : 1.8} /><span>{label}</span>{label === "Inbox" && <i>2</i>}</button>;
 }
 
-function UserMini() {
+function UserMini({ viewer }: { viewer: ViewerDTO | null }) {
   return (
-    <button className="user-mini">
-      <span className="avatar-wrap"><img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=85" alt="Arjun Kapoor" /><i /></span>
-      <span><strong>Arjun Kapoor</strong><small>@arjcollects</small></span><MoreHorizontal size={18} />
+    <button className="user-mini" onClick={() => { if (!viewer) window.location.href = "/login"; }}>
+      <span className="avatar-wrap"><img src={viewer?.avatarUrl ?? DEFAULT_AVATAR} alt={viewer?.displayName ?? "Join Klecto"} />{viewer && <i />}</span>
+      <span><strong>{viewer?.displayName ?? "Join Klecto"}</strong><small>{viewer ? `@${viewer.username}` : "Create your first shelf"}</small></span><MoreHorizontal size={18} />
     </button>
   );
 }
@@ -275,22 +280,34 @@ function FeedCard({ item, index, liked, saved, wished, onLike, onSave, onWish, o
   );
 }
 
-function CollectionsView({ onCreate }: { onCreate: () => void }) {
+function CollectionsView({ onCreate, data }: { onCreate: () => void; data: CatalogDashboardDTO }) {
   const scope = "All collections";
+  const liveCollections = data.viewer ? data.collections : null;
+  const cards = liveCollections ?? collectionCards.map((collection, index) => ({
+    id: `demo-${index}`,
+    name: collection.title,
+    description: collection.subtitle,
+    coverUrl: collection.image,
+    visibility: collection.privacy.toLowerCase() as Visibility,
+    items: Array.from({ length: collection.count }),
+    subcollections: [],
+  }));
+  const subcollectionCount = data.collections.reduce((total, collection) => total + collection.subcollections.length, 0);
   return (
     <>
       <section className="page-header"><div><span className="eyebrow">THE THINGS YOU KEEP</span><h1>Collections</h1></div><button className="primary-button" onClick={onCreate}><Plus size={18} /> New collection</button></section>
       <section className="collection-summary">
-        <div><strong>155</strong><span>items catalogued</span></div><div><strong>12</strong><span>collections</span></div><div><strong>8</strong><span>shared interests</span></div>
+        <div><strong>{data.viewer?.itemCount ?? 155}</strong><span>items catalogued</span></div><div><strong>{data.viewer?.collectionCount ?? 12}</strong><span>collections</span></div><div><strong>{data.viewer ? subcollectionCount : 8}</strong><span>subcollections</span></div>
       </section>
       <div className="collection-toolbar"><div className="select-like"><Grid2X2 size={16} />{scope}<ChevronDown size={15} /></div><button className="icon-button"><Search size={19} /></button><button className="icon-button"><SlidersHorizontal size={18} /></button></div>
       <div className="collection-grid">
-        {collectionCards.map((collection, index) => (
-          <motion.article className="collection-card" key={collection.title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }}>
-            <div className="collection-image"><img src={collection.image} alt="" /><span style={{ background: collection.accent }}>{collection.count}</span>{collection.privacy === "Private" && <i><LockKeyhole size={13} /></i>}</div>
-            <div className="collection-card-body"><small>{collection.privacy}</small><h2>{collection.title}</h2><p>{collection.subtitle}</p><div><span>{collection.count} items</span><button className="icon-button"><MoreHorizontal size={18} /></button></div></div>
+        {cards.map((collection, index) => (
+          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; }}>
+            <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.items.length}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
+            <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollections.map((entry) => entry.name).slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.items.length} items</span><button className="icon-button" onClick={(event) => event.stopPropagation()}><MoreHorizontal size={18} /></button></div></div>
           </motion.article>
         ))}
+        {liveCollections?.length === 0 && <div className="catalog-empty"><Layers3 size={24} /><strong>Your shelves are waiting.</strong><p>Start with Sneakers, Clothing, Watches, or name something only you collect.</p></div>}
         <button className="new-collection-card" onClick={onCreate}><span><Plus size={24} /></span><strong>Start something new</strong><small>Use a category or name your own.</small></button>
       </div>
     </>
@@ -349,15 +366,18 @@ function InboxView() {
   );
 }
 
-function ProfileView({ onOpenCollection }: { onOpenCollection: () => void }) {
+function ProfileView({ onOpenCollection, viewer }: { onOpenCollection: () => void; viewer: ViewerDTO | null }) {
   const [tab, setTab] = useState("Posts");
+  const displayName = viewer?.displayName ?? "Arjun Kapoor";
+  const username = viewer?.username ?? "arjcollects";
+  const bio = viewer?.bio ?? "Saving the things that make time visible. Sneakers, watches, records, and every tiny story attached.";
   return (
     <>
       <section className="profile-hero">
-        <div className="profile-banner"><span>Objects become stories<br />when someone remembers.</span></div>
-        <div className="profile-identity"><img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=260&q=85" alt="Arjun Kapoor" /><button className="secondary-button">Edit profile</button><button className="icon-button"><MoreHorizontal size={19} /></button></div>
-        <div className="profile-copy"><h1>Arjun Kapoor</h1><p className="handle">@arjcollects</p><p>Saving the things that make time visible. Sneakers, watches, records, and every tiny story attached.</p><span>Mumbai, India · Joined 2025</span></div>
-        <div className="profile-stats"><span><strong>486</strong> following</span><span><strong>2,184</strong> followers</span><span><strong>155</strong> items</span></div>
+        <div className="profile-banner" style={viewer?.bannerUrl ? { backgroundImage: `linear-gradient(90deg, rgb(29 32 22 / 35%), transparent), url(${viewer.bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}><span>Objects become stories<br />when someone remembers.</span></div>
+        <div className="profile-identity"><img src={viewer?.avatarUrl ?? DEFAULT_AVATAR} alt={displayName} /><button className="secondary-button" onClick={() => { window.location.href = viewer ? "/settings/profile" : "/login"; }}>{viewer ? "Edit profile" : "Join Klecto"}</button><button className="icon-button"><MoreHorizontal size={19} /></button></div>
+        <div className="profile-copy"><h1>{displayName}</h1><p className="handle">@{username}</p><p>{bio}</p><span>{viewer?.location ?? "Mumbai, India"}{viewer && ` · ${viewer.accountVisibility} profile`}</span></div>
+        <div className="profile-stats"><span><strong>{viewer?.followingCount ?? 486}</strong> following</span><span><strong>{viewer?.followersCount ?? "2,184"}</strong> followers</span><span><strong>{viewer?.itemCount ?? 155}</strong> items</span></div>
         <div className="profile-similarity"><div className="mini-ring">82%</div><span><strong>Your collection match</strong><small>Top overlaps: Nike, Seiko, Jazz</small></span><button>See details <ChevronRight size={15} /></button></div>
       </section>
       <div className="profile-tabs">{["Posts", "Collections", "Replies", "Likes", "Saved"].map((name) => <button key={name} className={tab === name ? "active" : ""} onClick={() => { setTab(name); if (name === "Collections") onOpenCollection(); }}>{name}{(name === "Likes" || name === "Saved") && <LockKeyhole size={12} />}</button>)}</div>
@@ -402,18 +422,124 @@ function Comment({ comment }: { comment: { name: string; handle: string; avatar:
   return <div className="comment"><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} · {comment.time}</span><button><MoreHorizontal size={16} /></button></div><p>{comment.body}</p><div className="comment-actions"><button><Heart size={15} /> {comment.likes}</button><button><MessageCircle size={15} /> Reply</button><button><Share2 size={15} /></button><button><Flag size={14} /></button></div></div></div>;
 }
 
-function CreateModal({ onClose }: { onClose: () => void }) {
+function CreateModal({ onClose, data }: { onClose: () => void; data: CatalogDashboardDTO }) {
   const [type, setType] = useState<"Item" | "Collection" | "Post">("Item");
   const [title, setTitle] = useState("");
-  const [step, setStep] = useState(1);
+  const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<Visibility>("public");
+  const [templateId, setTemplateId] = useState("");
+  const [collectionId, setCollectionId] = useState(data.collections[0]?.id ?? "");
+  const [subcollectionId, setSubcollectionId] = useState("");
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [year, setYear] = useState("");
+  const [condition, setCondition] = useState("");
+  const [mood, setMood] = useState<"grail" | "memory" | "favorite" | "regret" | "neutral">("neutral");
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const selectedCollection = data.collections.find((collection) => collection.id === collectionId);
+
+  const submit = () => {
+    const viewer = data.viewer;
+    if (!viewer) {
+      window.location.href = "/login";
+      return;
+    }
+    setError("");
+
+    if (type === "Post") {
+      setError("Live posts arrive in the next social-data slice. Items and collections are ready now.");
+      return;
+    }
+
+    startTransition(async () => {
+      if (type === "Collection") {
+        const result = await createCollectionAction({
+          name: title,
+          description: description.trim() || null,
+          templateId: templateId || null,
+          visibility,
+        });
+        if (!result.ok) return setError(result.error ?? "Could not create the collection.");
+        window.location.reload();
+        return;
+      }
+
+      if (!collectionId) return setError("Create or choose a collection first.");
+      if (files.length === 0) return setError("Add at least one photo of the item.");
+      if (files.length > 8) return setError("Choose no more than eight photos.");
+
+      const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/heic"]);
+      const invalidFile = files.find((file) => !acceptedTypes.has(file.type) || file.size > 15 * 1024 * 1024);
+      if (invalidFile) return setError(`${invalidFile.name} is not a supported image under 15 MB.`);
+
+      const supabase = createClient();
+      const uploadedPaths: string[] = [];
+      for (const file of files) {
+        const extension = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const path = `${viewer.id}/items/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("collection-media")
+          .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
+        if (uploadError) {
+          if (uploadedPaths.length) await supabase.storage.from("collection-media").remove(uploadedPaths);
+          return setError(`Upload failed for ${file.name}. Please try again.`);
+        }
+        uploadedPaths.push(path);
+      }
+
+      const numericYear = year ? Number(year) : null;
+      const result = await createItemAction({
+        collectionId,
+        subcollectionId: subcollectionId || null,
+        title,
+        description: description.trim() || null,
+        brand: brand.trim() || null,
+        model: model.trim() || null,
+        year: Number.isFinite(numericYear) ? numericYear : null,
+        condition: condition.trim() || null,
+        mood,
+        isFavorite,
+        visibility,
+        mediaPaths: uploadedPaths,
+      });
+      if (!result.ok) {
+        await supabase.storage.from("collection-media").remove(uploadedPaths);
+        return setError(result.error ?? "Could not create the item.");
+      }
+      window.location.reload();
+    });
+  };
   return (
     <motion.div className="modal-backdrop centered" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.section className="create-modal" initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} onClick={(event) => event.stopPropagation()}>
         <header><div><span className="eyebrow">ADD TO YOUR WORLD</span><h2>Create something</h2></div><button className="icon-button" onClick={onClose}><X size={20} /></button></header>
-        <div className="create-types">{(["Item", "Collection", "Post"] as const).map((entry) => <button key={entry} className={type === entry ? "active" : ""} onClick={() => setType(entry)}>{entry === "Item" ? <ImagePlus /> : entry === "Collection" ? <Layers3 /> : <Repeat2 />}<span><strong>{entry}</strong><small>{entry === "Item" ? "Catalog one thing" : entry === "Collection" ? "Start a new shelf" : "Share a thought"}</small></span>{type === entry && <Check size={17} />}</button>)}</div>
+        <div className="create-types">{(["Item", "Collection", "Post"] as const).map((entry) => <button key={entry} className={type === entry ? "active" : ""} onClick={() => { setType(entry); setError(""); }}>{entry === "Item" ? <ImagePlus /> : entry === "Collection" ? <Layers3 /> : <Repeat2 />}<span><strong>{entry}</strong><small>{entry === "Item" ? "Catalog one thing" : entry === "Collection" ? "Start a new shelf" : "Share a thought"}</small></span>{type === entry && <Check size={17} />}</button>)}</div>
         <div className="form-field"><label>{type} title</label><input autoFocus placeholder={type === "Item" ? "e.g. Jordan 1 High ‘85" : `Name your ${type.toLowerCase()}`} value={title} onChange={(event) => setTitle(event.target.value)} /></div>
-        {type === "Item" && <><div className="upload-zone"><ImagePlus size={24} /><strong>Drop photos here</strong><span>Up to 8 images · JPG, PNG or HEIC</span><button className="secondary-button">Choose photos</button></div><div className="two-fields"><div className="form-field"><label>Collection</label><button className="select-input">Archive sneakers <ChevronDown size={16} /></button></div><div className="form-field"><label>Feeling</label><button className="select-input"><Star size={15} /> Favorite <ChevronDown size={16} /></button></div></div></>}
-        <footer><span>Step {step} of 2</span><div className="progress"><i /><i className={step === 2 ? "active" : ""} /></div><button className="primary-button" disabled={!title.trim()} onClick={() => step === 1 ? setStep(2) : onClose()}>{step === 1 ? "Continue" : "Publish"}<ChevronRight size={17} /></button></footer>
+        {type !== "Post" && <div className="form-field"><label>Description</label><textarea placeholder="What makes this worth keeping?" value={description} onChange={(event) => setDescription(event.target.value)} /></div>}
+        {type === "Collection" && <>
+          <div className="two-fields">
+            <div className="form-field"><label>Starting template</label><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}><option value="">Custom collection</option>{data.templates.map((template) => <option value={template.id} key={template.id}>{template.name}</option>)}</select></div>
+            <div className="form-field"><label>Who can see it</label><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></div>
+          </div>
+        </>}
+        {type === "Item" && <>
+          <label className="upload-zone"><ImagePlus size={24} /><strong>{files.length ? `${files.length} photo${files.length === 1 ? "" : "s"} selected` : "Choose item photos"}</strong><span>Up to 8 images · JPG, PNG, WEBP, AVIF or HEIC · 15 MB each</span><span className="secondary-button">Browse photos</span><input className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
+          <div className="two-fields">
+            <div className="form-field"><label>Collection</label><select value={collectionId} onChange={(event) => { setCollectionId(event.target.value); setSubcollectionId(""); }}><option value="">Choose a collection</option>{data.collections.map((collection) => <option value={collection.id} key={collection.id}>{collection.name}</option>)}</select></div>
+            <div className="form-field"><label>Subcollection</label><select value={subcollectionId} onChange={(event) => setSubcollectionId(event.target.value)} disabled={!selectedCollection?.subcollections.length}><option value="">None</option>{selectedCollection?.subcollections.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></div>
+          </div>
+          <div className="two-fields"><div className="form-field"><label>Brand</label><input value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="Nike" /></div><div className="form-field"><label>Model</label><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Air Jordan 1" /></div></div>
+          <div className="two-fields"><div className="form-field"><label>Year</label><input value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="2021" /></div><div className="form-field"><label>Condition</label><input value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="Deadstock" /></div></div>
+          <div className="two-fields"><div className="form-field"><label>Story mark</label><select value={mood} onChange={(event) => setMood(event.target.value as typeof mood)}><option value="neutral">No mark</option><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favorite</option><option value="regret">Regret</option></select></div><div className="form-field"><label>Visibility</label><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></div></div>
+          <label className="check-field"><input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={16} /> Pin this as a favorite item</label>
+        </>}
+        {type === "Post" && <div className="create-coming-soon"><Repeat2 size={20} /><strong>Social posting is next.</strong><p>The current live slice focuses on building the catalog that posts and wishlists will reference.</p></div>}
+        {error && <div className="create-error" role="alert">{error}</div>}
+        <footer><span>{data.viewer ? "Saved to your live catalog" : "Sign in to publish"}</span><div className="progress"><i /><i className={pending ? "active" : ""} /></div><button className="primary-button" disabled={!title.trim() || pending} onClick={submit}>{pending ? "Publishing…" : data.viewer ? "Publish" : "Continue to sign in"}<ChevronRight size={17} /></button></footer>
       </motion.section>
     </motion.div>
   );

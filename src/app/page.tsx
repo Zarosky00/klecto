@@ -1,5 +1,7 @@
 import { KlectoApp } from "@/components/klecto-app";
+import { getCatalogDashboard } from "@/data/catalog";
 
-export default function Home() {
-  return <KlectoApp />;
+export default async function Home() {
+  const initialData = await getCatalogDashboard();
+  return <KlectoApp initialData={initialData} />;
 }
