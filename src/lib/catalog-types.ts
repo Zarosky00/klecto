@@ -81,6 +81,67 @@ export type CatalogDashboardDTO = {
   collections: CollectionDTO[];
 };
 
+/**
+ * Deliberately small, public-facing shapes used by /u/[username].
+ * These never include account controls, email addresses, raw storage paths,
+ * or any private catalog values.
+ */
+export type PublicProfileItemDTO = {
+  id: string;
+  title: string;
+  description: string | null;
+  brand: string | null;
+  model: string | null;
+  year: number | null;
+  condition: string | null;
+  mood: ItemMood;
+  isFavorite: boolean;
+  imageUrls: string[];
+  imageCount: number;
+};
+
+export type PublicProfileCollectionDTO = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  coverUrl: string | null;
+  isFeatured: boolean;
+  updatedAt: string;
+  itemCount: number;
+  subcollectionCount: number;
+  items: PublicProfileItemDTO[];
+};
+
+export type PublicProfileDTO = {
+  viewer: {
+    isOwner: boolean;
+    isFollowing: boolean;
+  };
+  profile: {
+    username: string;
+    displayName: string;
+    bio: string | null;
+    location: string | null;
+    website: string | null;
+    avatarUrl: string | null;
+    bannerUrl: string | null;
+    isVerified: boolean;
+  };
+  stats: {
+    followersCount: number;
+    followingCount: number;
+    collectionCount: number;
+    itemCount: number;
+  };
+  similarity: {
+    percentage: number;
+    sharedCount: number;
+    sharedTags: string[];
+  } | null;
+  collections: PublicProfileCollectionDTO[];
+};
+
 export type ActionResult = {
   ok: boolean;
   id?: string;

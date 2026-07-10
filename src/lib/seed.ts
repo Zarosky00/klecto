@@ -14,6 +14,7 @@ export type FeedItem = {
   title: string;
   description: string;
   image: string;
+  images?: string[];
   imageAlt: string;
   mood?: Mood;
   metadata: string[];
@@ -38,6 +39,11 @@ export const feedItems: FeedItem[] = [
     description:
       "A quiet pair with a loud history. Finally found my size after two years of looking — deadstock, yellowed in exactly the right way.",
     image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1400&q=88",
+    images: [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?auto=format&fit=crop&w=1400&q=88",
+    ],
     imageAlt: "Red and white collectible sneaker",
     mood: "grail",
     metadata: ["2021", "US 7.5", "Deadstock"],
@@ -59,6 +65,11 @@ export const feedItems: FeedItem[] = [
     description:
       "The one I keep coming back to. Saving this here so future me remembers not to settle for the black body.",
     image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1400&q=88",
+    images: [
+      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1495121605193-b116b5b09a0?auto=format&fit=crop&w=1400&q=88",
+    ],
     imageAlt: "Vintage silver film camera",
     mood: "favorite",
     metadata: ["35mm", "Point & shoot", "1990"],
@@ -81,6 +92,11 @@ export const feedItems: FeedItem[] = [
     description:
       "Added the little Cesca today. The collection is finally starting to feel like a conversation instead of a checklist.",
     image: "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&w=1400&q=88",
+    images: [
+      "https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1400&q=88",
+      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1400&q=88",
+    ],
     imageAlt: "A sculptural tan chair",
     mood: "memory",
     metadata: ["12 pieces", "2019—now", "Design"],
@@ -93,6 +109,8 @@ export const feedItems: FeedItem[] = [
 export const collectionCards = [
   {
     title: "Archive sneakers",
+    slug: "archive-sneakers",
+    ownerHandle: "mayacurates",
     subtitle: "Nike, New Balance + 4",
     count: 38,
     privacy: "Public",
@@ -101,6 +119,8 @@ export const collectionCards = [
   },
   {
     title: "Mechanical watches",
+    slug: "mechanical-watches",
+    ownerHandle: "found.daily",
     subtitle: "Seiko, Hamilton + 2",
     count: 16,
     privacy: "Public",
@@ -109,6 +129,8 @@ export const collectionCards = [
   },
   {
     title: "Records I kept",
+    slug: "records-i-kept",
+    ownerHandle: "smallmuseum",
     subtitle: "Jazz, Soul, Ambient",
     count: 74,
     privacy: "Public",
@@ -117,6 +139,8 @@ export const collectionCards = [
   },
   {
     title: "Childhood things",
+    slug: "childhood-things",
+    ownerHandle: "arjcollects",
     subtitle: "Toys, tickets, tiny stories",
     count: 27,
     privacy: "Private",
@@ -128,6 +152,7 @@ export const collectionCards = [
 export const matches = [
   {
     name: "Maya Chen",
+    handle: "mayacurates",
     handle: "mayacurates",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=85",
     score: 88,
@@ -160,6 +185,7 @@ export const conversations = [
   },
   {
     name: "The Film Club",
+    handle: null,
     avatar: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=200&q=85",
     message: "Theo shared an item",
     time: "24m",
@@ -168,6 +194,7 @@ export const conversations = [
   },
   {
     name: "Jon Bell",
+    handle: "found.daily",
     avatar: matches[1].avatar,
     message: "Perfect, call you Saturday.",
     time: "1h",
@@ -176,6 +203,7 @@ export const conversations = [
   },
   {
     name: "Leila Okafor",
+    handle: "smallmuseum",
     avatar: matches[2].avatar,
     message: "Saved it to my design shelf!",
     time: "Yesterday",
@@ -186,6 +214,7 @@ export const conversations = [
 
 export const comments = [
   {
+    id: "comment-jon",
     name: "Jon Bell",
     handle: "found.daily",
     avatar: matches[1].avatar,
@@ -194,6 +223,7 @@ export const comments = [
     likes: 18,
     replies: [
       {
+        id: "comment-maya-reply",
         name: "Maya Chen",
         handle: "mayacurates",
         avatar: matches[0].avatar,
@@ -204,6 +234,7 @@ export const comments = [
     ],
   },
   {
+    id: "comment-rae",
     name: "Rae Kim",
     handle: "raekim",
     avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=160&q=85",

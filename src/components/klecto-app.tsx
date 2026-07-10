@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Bell,
   Bookmark,
-  Camera,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -25,6 +24,7 @@ import {
   Menu,
   MessageCircle,
   Mic,
+  Maximize2,
   MoreHorizontal,
   Paperclip,
   Phone,
@@ -42,7 +42,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createCollectionAction, createItemAction } from "@/app/actions/catalog";
 import { createClient } from "@/lib/supabase/client";
 import type { CatalogDashboardDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
@@ -57,6 +57,24 @@ import {
 
 type View = "home" | "collections" | "matches" | "inbox" | "profile";
 type FeedFilter = "Everything" | "Collections" | "Items" | "Wishlists";
+type CollectorPreview = {
+  name: string;
+  handle: string;
+  avatar: string;
+  verified?: boolean;
+  score?: number;
+  shared?: string[];
+};
+type CommentRecord = {
+  id: string;
+  name: string;
+  handle: string;
+  avatar: string;
+  body: string;
+  time: string;
+  likes: number;
+  replies: Omit<CommentRecord, "replies">[];
+};
 
 const navItems: { id: View; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
@@ -85,6 +103,13 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [collectorPreview, setCollectorPreview] = useState<CollectorPreview | null>(null);
+  const [collectionPreviewIndex, setCollectionPreviewIndex] = useState<number | null>(null);
+
+  const openFeedCollection = (item: FeedItem) => {
+    const itemIndex = feedItems.findIndex((entry) => entry.id === item.id);
+    setCollectionPreviewIndex(Math.max(0, itemIndex));
+  };
 
   const visibleFeed = useMemo(() => {
     if (filter === "Collections") return feedItems.filter((item) => item.kind === "collection");
@@ -150,17 +175,19 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
                 toggleWish={(id) => toggle(id, wished, setWished)}
                 onComment={setCommentItem}
                 onCreate={() => setCreateOpen(true)}
+                onOpenCollector={setCollectorPreview}
+                onOpenCollection={openFeedCollection}
               />
             )}
-            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} />}
-            {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} />}
-            {view === "inbox" && <InboxView />}
-            {view === "profile" && <ProfileView onOpenCollection={() => navigate("collections")} viewer={initialData.viewer} />}
+            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreviewIndex} />}
+            {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
+            {view === "inbox" && <InboxView onOpenCollector={setCollectorPreview} />}
+            {view === "profile" && <ProfileView onOpenCollection={setCollectionPreviewIndex} viewer={initialData.viewer} />}
           </motion.div>
         </AnimatePresence>
       </motion.main>
 
-      <ContextRail view={view} navigate={navigate} />
+      <ContextRail view={view} navigate={navigate} onOpenCollector={setCollectorPreview} />
 
       <nav className="mobile-bottom-nav" aria-label="Primary navigation">
         {navItems.slice(0, 4).map((item) => {
@@ -173,6 +200,8 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
       <AnimatePresence>
         {commentItem && <CommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
         {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
+        {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreviewIndex} />}
+        {collectionPreviewIndex !== null && collectionCards[collectionPreviewIndex] && <CollectionPreviewSheet collection={collectionCards[collectionPreviewIndex]} onClose={() => setCollectionPreviewIndex(null)} onOpenOwner={setCollectorPreview} />}
       </AnimatePresence>
     </motion.div>
     </MotionConfig>
@@ -225,6 +254,8 @@ function HomeView(props: {
   toggleWish: (id: string) => void;
   onComment: (item: FeedItem) => void;
   onCreate: () => void;
+  onOpenCollector: (collector: CollectorPreview) => void;
+  onOpenCollection: (item: FeedItem) => void;
 }) {
   return (
     <>
@@ -245,7 +276,7 @@ function HomeView(props: {
       <div className="feed-list">
         <AnimatePresence mode="popLayout" initial={false}>
           {props.items.map((item, index) => (
-            <FeedCard key={item.id} item={item} index={index} liked={props.liked.includes(item.id)} saved={props.saved.includes(item.id)} wished={props.wished.includes(item.id)} onLike={() => props.toggleLike(item.id)} onSave={() => props.toggleSave(item.id)} onWish={() => props.toggleWish(item.id)} onComment={() => props.onComment(item)} />
+            <FeedCard key={item.id} item={item} index={index} liked={props.liked.includes(item.id)} saved={props.saved.includes(item.id)} wished={props.wished.includes(item.id)} onLike={() => props.toggleLike(item.id)} onSave={() => props.toggleSave(item.id)} onWish={() => props.toggleWish(item.id)} onComment={() => props.onComment(item)} onOpenCollector={props.onOpenCollector} onOpenCollection={props.onOpenCollection} />
           ))}
         </AnimatePresence>
       </div>
@@ -253,23 +284,19 @@ function HomeView(props: {
   );
 }
 
-function FeedCard({ item, index, liked, saved, wished, onLike, onSave, onWish, onComment }: { item: FeedItem; index: number; liked: boolean; saved: boolean; wished: boolean; onLike: () => void; onSave: () => void; onWish: () => void; onComment: () => void }) {
+function FeedCard({ item, index, liked, saved, wished, onLike, onSave, onWish, onComment, onOpenCollector, onOpenCollection }: { item: FeedItem; index: number; liked: boolean; saved: boolean; wished: boolean; onLike: () => void; onSave: () => void; onWish: () => void; onComment: () => void; onOpenCollector?: (collector: CollectorPreview) => void; onOpenCollection?: (item: FeedItem) => void }) {
   const mood = item.mood ? moodLabels[item.mood] : null;
   const MoodIcon = mood?.icon;
   return (
     <motion.article layout className="feed-card" initial={{ opacity: 0, y: 22, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} whileHover={{ y: -4 }} transition={{ delay: index * 0.055, duration: 0.46, ease: [0.16, 1, 0.3, 1] }}>
-      <div className="post-head">
+      <div className="post-head" onClickCapture={(event) => { if ((event.target as HTMLElement).closest(".author")) onOpenCollector?.(item.author); }}>
         <button className="author"><img src={item.author.avatar} alt="" /><span><strong>{item.author.name}{item.author.verified && <ShieldCheck size={14} />}</strong><small>@{item.author.handle} · {item.time}</small></span></button>
         <button className="icon-button"><Ellipsis size={19} /></button>
       </div>
-      <div className="collection-label"><span>{item.kind === "wishlist" ? <Repeat2 size={14} /> : <Layers3 size={14} />}</span>{item.collection}<ChevronRight size={14} /></div>
+      <button className="collection-label collection-link" onClick={() => onOpenCollection?.(item)}><span>{item.kind === "wishlist" ? <Repeat2 size={14} /> : <Layers3 size={14} />}</span>{item.collection}<ChevronRight size={14} /></button>
       <h2>{item.title}</h2>
       <p className="post-copy">{item.description}</p>
-      <div className="media-frame">
-        <img src={item.image} alt={item.imageAlt} />
-        {mood && MoodIcon && <span className={`mood-tag ${item.mood}`}><MoodIcon size={14} fill={item.mood === "favorite" ? "currentColor" : "none"} />{mood.label}</span>}
-        <span className="image-count"><Camera size={13} /> 1 / 3</span>
-      </div>
+      <FeedMediaGallery item={item} mood={mood?.label ?? null} MoodIcon={MoodIcon} />
       <div className="metadata-row">{item.metadata.map((entry) => <span key={entry}>{entry}</span>)}</div>
       <div className="post-actions">
         <button className={liked ? "liked" : ""} onClick={onLike}><Heart size={19} fill={liked ? "currentColor" : "none"} /><span>{item.likes + (liked ? 1 : 0)}</span></button>
@@ -282,7 +309,84 @@ function FeedCard({ item, index, liked, saved, wished, onLike, onSave, onWish, o
   );
 }
 
-function CollectionsView({ onCreate, data }: { onCreate: () => void; data: CatalogDashboardDTO }) {
+function FeedMediaGallery({ item, mood, MoodIcon }: { item: FeedItem; mood: string | null; MoodIcon: typeof Sparkles | undefined }) {
+  const images = item.images?.length ? item.images : [item.image];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const goTo = (nextIndex: number) => {
+    const wrappedIndex = (nextIndex + images.length) % images.length;
+    setDirection(wrappedIndex >= activeIndex ? 1 : -1);
+    setActiveIndex(wrappedIndex);
+  };
+
+  return (
+    <>
+      <div className="media-gallery" tabIndex={0} onKeyDown={(event) => {
+        if (images.length < 2) return;
+        if (event.key === "ArrowRight") { event.preventDefault(); goTo(activeIndex + 1); }
+        if (event.key === "ArrowLeft") { event.preventDefault(); goTo(activeIndex - 1); }
+      }} aria-label={`${item.title} photo gallery`}>
+        <motion.div className="media-frame" drag={images.length > 1 ? "x" : false} dragConstraints={{ left: 0, right: 0 }} dragElastic={0.14} onDragEnd={(_, info) => {
+          if (images.length < 2 || Math.abs(info.offset.x) < 46) return;
+          goTo(info.offset.x < 0 ? activeIndex + 1 : activeIndex - 1);
+        }}>
+          <AnimatePresence initial={false} mode="wait" custom={direction}>
+            <motion.img key={images[activeIndex]} src={images[activeIndex]} alt={`${item.imageAlt} — photo ${activeIndex + 1} of ${images.length}`} custom={direction} initial={{ opacity: 0, x: direction * 28, scale: 1.015 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: direction * -28, scale: 1.01 }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} onClick={() => setLightboxOpen(true)} />
+          </AnimatePresence>
+          {mood && MoodIcon && <span className={`mood-tag ${item.mood}`}><MoodIcon size={14} fill={item.mood === "favorite" ? "currentColor" : "none"} />{mood}</span>}
+          {images.length > 1 && <>
+            <button className="gallery-nav previous" onClick={() => goTo(activeIndex - 1)} aria-label="Previous photo"><ChevronLeft size={19} /></button>
+            <button className="gallery-nav next" onClick={() => goTo(activeIndex + 1)} aria-label="Next photo"><ChevronRight size={19} /></button>
+            <div className="gallery-dots" aria-label={`Photo ${activeIndex + 1} of ${images.length}`}>{images.map((_, imageIndex) => <button key={imageIndex} className={activeIndex === imageIndex ? "active" : ""} onClick={() => goTo(imageIndex)} aria-label={`Show photo ${imageIndex + 1}`} />)}</div>
+          </>}
+          <button className="gallery-expand" onClick={() => setLightboxOpen(true)} aria-label="View photos fullscreen"><Maximize2 size={16} /></button>
+          {images.length > 1 && <span className="image-count">{activeIndex + 1} / {images.length}</span>}
+        </motion.div>
+      </div>
+      <AnimatePresence>{lightboxOpen && <MediaLightbox images={images} imageAlt={item.imageAlt} initialIndex={activeIndex} onClose={() => setLightboxOpen(false)} />}</AnimatePresence>
+    </>
+  );
+}
+
+function MediaLightbox({ images, imageAlt, initialIndex, onClose }: { images: string[]; imageAlt: string; initialIndex: number; onClose: () => void }) {
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [direction, setDirection] = useState(1);
+  const goTo = (nextIndex: number) => {
+    const wrappedIndex = (nextIndex + images.length) % images.length;
+    setDirection(wrappedIndex >= activeIndex ? 1 : -1);
+    setActiveIndex(wrappedIndex);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowRight") goTo(activeIndex + 1);
+      if (event.key === "ArrowLeft") goTo(activeIndex - 1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeIndex, images.length, onClose]);
+
+  return (
+    <motion.div className="lightbox-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="Photo viewer">
+      <motion.section className="media-lightbox" initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: 12 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} onClick={(event) => event.stopPropagation()}>
+        <header><span>{activeIndex + 1} of {images.length}</span><button className="icon-button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+        <div className="lightbox-stage">
+          {images.length > 1 && <button className="lightbox-nav previous" onClick={() => goTo(activeIndex - 1)} aria-label="Previous photo"><ChevronLeft size={24} /></button>}
+          <AnimatePresence initial={false} mode="wait" custom={direction}>
+            <motion.img key={images[activeIndex]} src={images[activeIndex]} alt={`${imageAlt} — photo ${activeIndex + 1} of ${images.length}`} custom={direction} initial={{ opacity: 0, x: direction * 48, scale: 0.985 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: direction * -48, scale: 0.99 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }} />
+          </AnimatePresence>
+          {images.length > 1 && <button className="lightbox-nav next" onClick={() => goTo(activeIndex + 1)} aria-label="Next photo"><ChevronRight size={24} /></button>}
+        </div>
+        {images.length > 1 && <div className="lightbox-thumbnails">{images.map((image, imageIndex) => <button key={image} className={activeIndex === imageIndex ? "active" : ""} onClick={() => goTo(imageIndex)}><img src={image} alt={`Go to photo ${imageIndex + 1}`} /></button>)}</div>}
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function CollectionsView({ onCreate, data, onPreviewCollection }: { onCreate: () => void; data: CatalogDashboardDTO; onPreviewCollection: (index: number) => void }) {
   const scope = "All collections";
   const liveCollections = data.viewer ? data.collections : null;
   const cards = liveCollections ?? collectionCards.map((collection, index) => ({
@@ -304,7 +408,7 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
       <div className="collection-toolbar"><div className="select-like"><Grid2X2 size={16} />{scope}<ChevronDown size={15} /></div><button className="icon-button"><Search size={19} /></button><button className="icon-button"><SlidersHorizontal size={18} /></button></div>
       <div className="collection-grid">
         {cards.map((collection, index) => (
-          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; }}>
+          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; else onPreviewCollection(index); }}>
             <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.items.length}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
             <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollections.map((entry) => entry.name).slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.items.length} items</span><button className="icon-button" onClick={(event) => event.stopPropagation()}><MoreHorizontal size={18} /></button></div></div>
           </motion.article>
@@ -316,7 +420,7 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
   );
 }
 
-function MatchesView({ onMessage }: { onMessage: () => void }) {
+function MatchesView({ onMessage, onOpenCollector }: { onMessage: () => void; onOpenCollector: (collector: CollectorPreview) => void }) {
   const [active, setActive] = useState(0);
   const match = matches[active];
   return (
@@ -327,7 +431,7 @@ function MatchesView({ onMessage }: { onMessage: () => void }) {
         <img className="match-avatar" src={match.avatar} alt="" />
         <span className="match-kicker">TODAY’S CLOSEST MATCH</span><h2>{match.name}</h2><p>@{match.handle}</p>
         <div className="shared-tags">{match.shared.map((tag) => <span key={tag}>{tag}</span>)}</div>
-        <div className="match-actions"><button className="secondary-button"><UserRound size={17} /> View profile</button><button className="primary-button" onClick={onMessage}><MessageCircle size={17} /> Say hello</button></div>
+        <div className="match-actions"><button className="secondary-button" onClick={() => onOpenCollector(match)}><UserRound size={17} /> View profile</button><button className="primary-button" onClick={onMessage}><MessageCircle size={17} /> Say hello</button></div>
         <button className="match-arrow left" onClick={() => setActive((active + matches.length - 1) % matches.length)}><ChevronLeft /></button>
         <button className="match-arrow right" onClick={() => setActive((active + 1) % matches.length)}><ChevronRight /></button>
       </div>
