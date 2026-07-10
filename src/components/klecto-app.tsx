@@ -42,7 +42,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createCollectionAction, createItemAction } from "@/app/actions/catalog";
 import { createClient } from "@/lib/supabase/client";
 import type { CatalogDashboardDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
@@ -65,7 +65,16 @@ type CollectorPreview = {
   score?: number;
   shared?: string[];
 };
-type CommentRecord = {
+type CollectionPreview = {
+  title: string;
+  subtitle: string;
+  count: number;
+  privacy: string;
+  image: string;
+  ownerHandle: string;
+  ownerName?: string;
+};
+type CommentReply = {
   id: string;
   name: string;
   handle: string;
@@ -73,8 +82,8 @@ type CommentRecord = {
   body: string;
   time: string;
   likes: number;
-  replies: Omit<CommentRecord, "replies">[];
 };
+type CommentRecord = CommentReply & { replies: CommentReply[] };
 
 const navItems: { id: View; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
@@ -104,11 +113,18 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [createOpen, setCreateOpen] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [collectorPreview, setCollectorPreview] = useState<CollectorPreview | null>(null);
-  const [collectionPreviewIndex, setCollectionPreviewIndex] = useState<number | null>(null);
+  const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
 
   const openFeedCollection = (item: FeedItem) => {
-    const itemIndex = feedItems.findIndex((entry) => entry.id === item.id);
-    setCollectionPreviewIndex(Math.max(0, itemIndex));
+    setCollectionPreview({
+      title: item.collection.split("/")[0]?.trim() || item.collection,
+      subtitle: item.collection,
+      count: item.kind === "collection" ? 12 : 1,
+      privacy: "Public",
+      image: item.image,
+      ownerHandle: item.author.handle,
+      ownerName: item.author.name,
+    });
   };
 
   const visibleFeed = useMemo(() => {
@@ -158,7 +174,6 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
       </AnimatePresence>
 
       <motion.main className="main-column" initial={{ opacity: 0, y: 20, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.06, duration: 0.56, ease: [0.16, 1, 0.3, 1] }}>
-        <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
             {view === "home" && (
               <HomeView
@@ -179,29 +194,28 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
                 onOpenCollection={openFeedCollection}
               />
             )}
-            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreviewIndex} />}
+            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} onPreviewCollection={setCollectionPreview} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
-            {view === "inbox" && <InboxView onOpenCollector={setCollectorPreview} />}
-            {view === "profile" && <ProfileView onOpenCollection={setCollectionPreviewIndex} viewer={initialData.viewer} />}
+            {view === "inbox" && <PremiumInboxView onOpenCollector={setCollectorPreview} />}
+            {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} />}
           </motion.div>
-        </AnimatePresence>
       </motion.main>
 
-      <ContextRail view={view} navigate={navigate} onOpenCollector={setCollectorPreview} />
+      <PremiumContextRail view={view} navigate={navigate} onOpenCollector={setCollectorPreview} />
 
       <nav className="mobile-bottom-nav" aria-label="Primary navigation">
         {navItems.slice(0, 4).map((item) => {
           const Icon = item.icon;
           return <motion.button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)} whileTap={{ scale: 0.92 }}><Icon size={21} /><span>{item.label}</span>{item.id === "inbox" && <i>2</i>}</motion.button>;
         })}
-        <motion.button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>
+        {view !== "inbox" && <motion.button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>}
       </nav>
 
       <AnimatePresence>
-        {commentItem && <CommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
+        {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
         {createOpen && <CreateModal onClose={() => setCreateOpen(false)} data={initialData} />}
-        {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreviewIndex} />}
-        {collectionPreviewIndex !== null && collectionCards[collectionPreviewIndex] && <CollectionPreviewSheet collection={collectionCards[collectionPreviewIndex]} onClose={() => setCollectionPreviewIndex(null)} onOpenOwner={setCollectorPreview} />}
+        {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
+        {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
       </AnimatePresence>
     </motion.div>
     </MotionConfig>
@@ -353,11 +367,11 @@ function FeedMediaGallery({ item, mood, MoodIcon }: { item: FeedItem; mood: stri
 function MediaLightbox({ images, imageAlt, initialIndex, onClose }: { images: string[]; imageAlt: string; initialIndex: number; onClose: () => void }) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [direction, setDirection] = useState(1);
-  const goTo = (nextIndex: number) => {
+  const goTo = useCallback((nextIndex: number) => {
     const wrappedIndex = (nextIndex + images.length) % images.length;
     setDirection(wrappedIndex >= activeIndex ? 1 : -1);
     setActiveIndex(wrappedIndex);
-  };
+  }, [activeIndex, images.length]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -367,7 +381,7 @@ function MediaLightbox({ images, imageAlt, initialIndex, onClose }: { images: st
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeIndex, images.length, onClose]);
+  }, [activeIndex, goTo, onClose]);
 
   return (
     <motion.div className="lightbox-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="Photo viewer">
@@ -386,7 +400,7 @@ function MediaLightbox({ images, imageAlt, initialIndex, onClose }: { images: st
   );
 }
 
-function CollectionsView({ onCreate, data, onPreviewCollection }: { onCreate: () => void; data: CatalogDashboardDTO; onPreviewCollection: (index: number) => void }) {
+function CollectionsView({ onCreate, data, onPreviewCollection }: { onCreate: () => void; data: CatalogDashboardDTO; onPreviewCollection: (collection: CollectionPreview) => void }) {
   const scope = "All collections";
   const liveCollections = data.viewer ? data.collections : null;
   const cards = liveCollections ?? collectionCards.map((collection, index) => ({
@@ -408,7 +422,15 @@ function CollectionsView({ onCreate, data, onPreviewCollection }: { onCreate: ()
       <div className="collection-toolbar"><div className="select-like"><Grid2X2 size={16} />{scope}<ChevronDown size={15} /></div><button className="icon-button"><Search size={19} /></button><button className="icon-button"><SlidersHorizontal size={18} /></button></div>
       <div className="collection-grid">
         {cards.map((collection, index) => (
-          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { if (data.viewer) window.location.href = `/collections/${collection.id}`; else onPreviewCollection(index); }}>
+          <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => {
+            if (data.viewer) {
+              window.location.href = `/collections/${collection.id}`;
+              return;
+            }
+            const source = collectionCards[index];
+            if (!source) return;
+            onPreviewCollection({ title: source.title, subtitle: source.subtitle, count: source.count, privacy: source.privacy, image: source.image, ownerHandle: source.ownerHandle });
+          }}>
             <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.items.length}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
             <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollections.map((entry) => entry.name).slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.items.length} items</span><button className="icon-button" onClick={(event) => event.stopPropagation()}><MoreHorizontal size={18} /></button></div></div>
           </motion.article>
@@ -443,6 +465,63 @@ function MatchesView({ onMessage, onOpenCollector }: { onMessage: () => void; on
   );
 }
 
+function previewFromCard(card: (typeof collectionCards)[number]): CollectionPreview {
+  return {
+    title: card.title,
+    subtitle: card.subtitle,
+    count: card.count,
+    privacy: card.privacy,
+    image: card.image,
+    ownerHandle: card.ownerHandle,
+  };
+}
+
+function CollectorProfileSheet({ collector, onClose, onOpenCollection }: { collector: CollectorPreview; onClose: () => void; onOpenCollection: (collection: CollectionPreview) => void }) {
+  const [tab, setTab] = useState<"Overview" | "Shelves">("Overview");
+  const cards = collectionCards.filter((card) => card.ownerHandle === collector.handle);
+  const visibleCards = cards.length ? cards : collectionCards.slice(0, 2);
+  const relatedItems = feedItems.filter((item) => item.author.handle === collector.handle);
+  const shared = collector.shared ?? matches.find((entry) => entry.handle === collector.handle)?.shared ?? ["Stories", "Good objects"];
+
+  return (
+    <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.aside className="collector-sheet" initial={{ opacity: 0, x: 28, scale: 0.985 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 24, scale: 0.985 }} transition={{ type: "spring", damping: 29, stiffness: 290 }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${collector.name} profile`}>
+        <div className="collector-sheet-cover"><div className="collector-sheet-orbit" /><button className="icon-button sheet-close" onClick={onClose} aria-label="Close profile"><X size={20} /></button><span>COLLECTOR PROFILE</span></div>
+        <div className="collector-sheet-body">
+          <div className="collector-sheet-identity"><img src={collector.avatar} alt={collector.name} /><div><span className="eyebrow">ON KLECTO</span><h2>{collector.name}{collector.verified && <ShieldCheck size={17} />}</h2><p>@{collector.handle}</p></div>{collector.score ? <div className="collector-score">{collector.score}%<small>match</small></div> : null}</div>
+          <p className="collector-sheet-bio">A shelf built around the details worth returning to: provenance, patina, and the stories no product page can hold.</p>
+          <div className="collector-shared"><span>YOU BOTH KEEP</span><div>{shared.slice(0, 4).map((tag) => <i key={tag}>{tag}</i>)}</div></div>
+          <div className="collector-sheet-actions"><button className="primary-button" onClick={() => { window.location.href = `/u/${collector.handle}`; }}><UserRound size={17} /> Open profile</button><button className="secondary-button"><MessageCircle size={17} /> Message</button></div>
+          <div className="sheet-tabs"><button className={tab === "Overview" ? "active" : ""} onClick={() => setTab("Overview")}>Overview</button><button className={tab === "Shelves" ? "active" : ""} onClick={() => setTab("Shelves")}>Shelves <span>{visibleCards.length}</span></button></div>
+          {tab === "Overview" ? <div className="collector-glance"><div><strong>{collector.score ?? 82}%</strong><span>collection overlap</span></div><div><strong>{Math.max(12, relatedItems.length * 14 + 12)}</strong><span>objects shared</span></div><div><strong>{visibleCards.reduce((total, card) => total + card.count, 0)}</strong><span>catalogued</span></div></div> : <div className="sheet-collection-list">{visibleCards.map((card) => <button className="sheet-collection" key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))}><img src={card.image} alt="" /><span><small>{card.privacy} shelf</small><strong>{card.title}</strong><em>{card.count} objects <ChevronRight size={15} /></em></span></button>)}</div>}
+        </div>
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+function CollectionPreviewSheet({ collection, onClose, onOpenOwner }: { collection: CollectionPreview; onClose: () => void; onOpenOwner: (collector: CollectorPreview) => void }) {
+  const match = matches.find((entry) => entry.handle === collection.ownerHandle);
+  const owner: CollectorPreview = match ?? { name: collection.ownerName ?? collection.ownerHandle, handle: collection.ownerHandle, avatar: feedItems.find((item) => item.author.handle === collection.ownerHandle)?.author.avatar ?? DEFAULT_AVATAR };
+  const relatedItems = feedItems.filter((item) => item.author.handle === collection.ownerHandle);
+  const showcase = relatedItems.length ? relatedItems : feedItems.slice(0, 2);
+
+  return (
+    <motion.div className="sheet-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.aside className="collection-preview-sheet" initial={{ opacity: 0, y: 28, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.985 }} transition={{ type: "spring", damping: 28, stiffness: 280 }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${collection.title} collection`}>
+        <div className="collection-preview-cover"><img src={collection.image} alt="" /><div className="collection-preview-gradient" /><button className="icon-button sheet-close" onClick={onClose} aria-label="Close collection"><X size={20} /></button><span>{collection.privacy} SHELF</span><div><h2>{collection.title}</h2><p>{collection.subtitle}</p></div></div>
+        <div className="collection-preview-body">
+          <button className="sheet-owner" onClick={() => { onClose(); onOpenOwner(owner); }}><img src={owner.avatar} alt="" /><span><small>CURATED BY</small><strong>{owner.name}</strong><em>@{owner.handle}</em></span><ChevronRight size={18} /></button>
+          <div className="collection-preview-stats"><span><strong>{collection.count}</strong> objects</span><span><strong>{showcase.length}</strong> highlighted</span><span><strong>Updated</strong> recently</span></div>
+          <div className="collection-preview-heading"><div><span className="eyebrow">FROM THIS SHELF</span><h3>Things with a point of view.</h3></div><button className="secondary-button" onClick={() => window.location.href = `/u/${owner.handle}`}>View all</button></div>
+          <div className="collection-preview-items">{showcase.map((item) => <article key={item.id}><img src={item.image} alt="" /><span><small>{item.metadata[0] ?? "Collection item"}</small><strong>{item.title}</strong></span></article>)}</div>
+        </div>
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function InboxView() {
   const [selected, setSelected] = useState(0);
   const [message, setMessage] = useState("");
@@ -472,6 +551,7 @@ function InboxView() {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ProfileView({ onOpenCollection, viewer }: { onOpenCollection: () => void; viewer: ViewerDTO | null }) {
   const [tab, setTab] = useState("Posts");
   const displayName = viewer?.displayName ?? "Arjun Kapoor";
@@ -495,6 +575,7 @@ function ProfileView({ onOpenCollection, viewer }: { onOpenCollection: () => voi
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ContextRail({ navigate }: { view: View; navigate: (view: View) => void }) {
   return (
     <motion.aside className="context-rail" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.14, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
@@ -507,6 +588,7 @@ function ContextRail({ navigate }: { view: View; navigate: (view: View) => void 
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CommentDrawer({ item, onClose }: { item: FeedItem; onClose: () => void }) {
   const [reply, setReply] = useState("");
   return (
@@ -526,6 +608,150 @@ function CommentDrawer({ item, onClose }: { item: FeedItem; onClose: () => void 
 
 function Comment({ comment }: { comment: { name: string; handle: string; avatar: string; body: string; time: string; likes: number } }) {
   return <div className="comment"><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} · {comment.time}</span><button><MoreHorizontal size={16} /></button></div><p>{comment.body}</p><div className="comment-actions"><button><Heart size={15} /> {comment.likes}</button><button><MessageCircle size={15} /> Reply</button><button><Share2 size={15} /></button><button><Flag size={14} /></button></div></div></div>;
+}
+
+function PremiumInboxView({ onOpenCollector }: { onOpenCollector: (collector: CollectorPreview) => void }) {
+  const [selected, setSelected] = useState(0);
+  const [message, setMessage] = useState("");
+  const [sent, setSent] = useState<string[]>([]);
+  const [tab, setTab] = useState<"All" | "Unread" | "Groups">("All");
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
+  const [calling, setCalling] = useState<"audio" | "video" | null>(null);
+  const active = conversations[selected] ?? conversations[0];
+  const activeMatch = active.handle ? matches.find((match) => match.handle === active.handle) : undefined;
+  const activeCollector: CollectorPreview | null = active.handle
+    ? activeMatch ?? { name: active.name, handle: active.handle, avatar: active.avatar }
+    : null;
+  const visibleConversations = conversations
+    .map((conversation, index) => ({ conversation, index }))
+    .filter(({ conversation }) => tab === "All" || (tab === "Unread" ? conversation.unread > 0 : !conversation.handle));
+
+  const selectConversation = (index: number) => {
+    setSelected(index);
+    setMobileThreadOpen(true);
+  };
+
+  return (
+    <div className={`inbox-shell premium-inbox ${mobileThreadOpen ? "thread-open" : ""}`}>
+      <section className="conversation-list premium-conversation-list">
+        <div className="inbox-title premium-inbox-title"><div><span className="eyebrow">YOUR CIRCLE</span><h1>Inbox</h1><p>Small conversations, well kept.</p></div><button className="new-thread-button" aria-label="Start a new conversation"><Plus size={19} /></button></div>
+        <div className="inbox-search-wrap"><div className="search-box"><Search size={18} /><input aria-label="Search conversations" placeholder="Search your circle" /></div></div>
+        <div className="inbox-tabs premium-inbox-tabs" aria-label="Conversation filter">{(["All", "Unread", "Groups"] as const).map((entry) => <button key={entry} className={tab === entry ? "active" : ""} onClick={() => setTab(entry)}>{entry}{entry === "Unread" && <span>{conversations.filter((conversation) => conversation.unread > 0).length}</span>}</button>)}</div>
+        <div className="conversation-stack">
+          {visibleConversations.map(({ conversation, index }) => <motion.button layout key={conversation.name} className={`conversation premium-conversation ${selected === index ? "active" : ""}`} onClick={() => selectConversation(index)} whileTap={{ scale: 0.985 }}><span className="avatar-wrap"><img src={conversation.avatar} alt="" />{conversation.online && <i />}</span><span className="conversation-copy"><strong>{conversation.name}</strong><small>{conversation.message}</small></span><span className="conversation-meta"><time>{conversation.time}</time>{conversation.unread > 0 && <i>{conversation.unread}</i>}</span></motion.button>)}
+        </div>
+        <div className="inbox-footnote"><span><Sparkles size={15} /> Your best collection match is one message away.</span></div>
+      </section>
+      <section className="chat-panel premium-chat-panel">
+        <header className="chat-head premium-chat-head">
+          <button className="mobile-thread-back" onClick={() => setMobileThreadOpen(false)} aria-label="Back to conversations"><ChevronLeft size={21} /></button>
+          <button className="chat-person" onClick={() => activeCollector && onOpenCollector(activeCollector)} disabled={!activeCollector}><span className="avatar-wrap"><img src={active.avatar} alt="" />{active.online && <i />}</span><span><strong>{active.name}</strong><small>{active.handle ? `${active.online ? "Active now" : "Away"}${activeMatch ? ` - ${activeMatch.score}% match` : ""}` : "Group conversation"}</small></span></button>
+          <div className="chat-tools"><button className="icon-button" onClick={() => setCalling("audio")} aria-label="Start audio call"><Phone size={18} /></button><button className="icon-button video-call" onClick={() => setCalling("video")} aria-label="Start video call"><Video size={19} /></button><button className="icon-button" aria-label="Conversation options"><MoreHorizontal size={19} /></button></div>
+        </header>
+        <div className="chat-body premium-chat-body">
+          <span className="day-divider">TODAY</span>
+          <motion.div className="message received" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>Hey! Your New Balance shelf is excellent. Is the grey 990v3 as comfortable as everyone says?<time>10:31</time></motion.div>
+          <motion.div className="message sent" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>Completely. It is the pair I grab without thinking.<time>10:33</time></motion.div>
+          <motion.button className="shared-item premium-shared-item" whileTap={{ scale: 0.99 }}><img src={collectionCards[0].image} alt="" /><span><small>SHARED FROM A SHELF</small><strong>New Balance 990v3</strong><p>Archive sneakers - 2021</p></span><ChevronRight size={18} /></motion.button>
+          <motion.div className="message received" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>That colorway is unreal - trade someday?<time>10:36</time></motion.div>
+          {sent.map((text, index) => <motion.div className="message sent" key={`${text}-${index}`} initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}>{text}<time>Now</time></motion.div>)}
+        </div>
+        <form className="composer premium-composer" onSubmit={(event) => { event.preventDefault(); const value = message.trim(); if (!value) return; setSent((current) => [...current, value]); setMessage(""); }}><button type="button" className="composer-add" aria-label="Add something"><Plus size={20} /></button><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder={`Message ${active.name.split(" ")[0]}`} /><button type="button" className="composer-mic" aria-label="Record a voice message"><Mic size={19} /></button><button className="send-button" aria-label="Send message"><Send size={17} /></button></form>
+      </section>
+      <AnimatePresence>{calling && <motion.div className="call-toast" initial={{ opacity: 0, y: 18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.96 }}><span>{calling === "video" ? <Video size={18} /> : <Phone size={17} />}</span><div><strong>{calling === "video" ? "Video call ready" : "Audio call ready"}</strong><small>Connect when the other collector accepts.</small></div><button onClick={() => setCalling(null)} aria-label="Dismiss call notice"><X size={17} /></button></motion.div>}</AnimatePresence>
+    </div>
+  );
+}
+
+function PremiumProfileView({ onOpenCollection, viewer }: { onOpenCollection: (collection: CollectionPreview) => void; viewer: ViewerDTO | null }) {
+  const [tab, setTab] = useState<"Posts" | "Collections" | "Replies" | "Likes" | "Saved">("Posts");
+  const displayName = viewer?.displayName ?? "Arjun Kapoor";
+  const username = viewer?.username ?? "arjcollects";
+  const bio = viewer?.bio ?? "Saving the things that make time visible. Sneakers, watches, records, and every tiny story attached.";
+  const cards = collectionCards.filter((card) => card.ownerHandle === username);
+  const profileCards = cards.length ? cards : collectionCards.slice(0, 3);
+  const privateTab = tab === "Likes" || tab === "Saved";
+
+  return (
+    <>
+      <section className="profile-hero profile-premium">
+        <div className="profile-banner profile-premium-banner" style={viewer?.bannerUrl ? { backgroundImage: `linear-gradient(100deg, rgb(24 28 19 / 50%), rgb(24 28 19 / 7%)), url(${viewer.bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}><div className="profile-banner-glow" /><div className="profile-banner-copy"><span>THE PERSONAL ARCHIVE</span><strong>Objects become stories<br />when someone remembers.</strong></div></div>
+        <div className="profile-premium-body">
+          <div className="profile-premium-top"><div className="profile-premium-avatar"><img src={viewer?.avatarUrl ?? DEFAULT_AVATAR} alt={displayName} /><i /></div><div className="profile-premium-actions"><button className="secondary-button" onClick={() => { window.location.href = viewer ? "/settings/profile" : "/login"; }}>{viewer ? "Edit profile" : "Join Klecto"}</button><button className="icon-button" aria-label="Profile options"><MoreHorizontal size={19} /></button></div></div>
+          <div className="profile-premium-identity"><span className="eyebrow">COLLECTOR</span><h1>{displayName}<ShieldCheck size={18} /></h1><p className="handle">@{username}</p><p className="profile-premium-bio">{bio}</p><div className="profile-premium-location"><span>{viewer?.location ?? "Mumbai, India"}</span><i /> <span>{viewer ? `${viewer.accountVisibility} profile` : "Public profile"}</span></div></div>
+          <div className="profile-stat-grid"><span><strong>{viewer?.followersCount ?? "2,184"}</strong><small>followers</small></span><span><strong>{viewer?.followingCount ?? 486}</strong><small>following</small></span><span><strong>{viewer?.itemCount ?? 155}</strong><small>catalogued</small></span><span><strong>{viewer?.collectionCount ?? 12}</strong><small>shelves</small></span></div>
+          <button className="profile-similarity premium-profile-similarity" onClick={() => setTab("Collections")}><div className="mini-ring">82%</div><span><strong>Your collection match</strong><small>Top overlaps: Nike, Seiko, Jazz</small></span><em>Explore <ChevronRight size={16} /></em></button>
+        </div>
+      </section>
+      <div className="profile-tabs profile-premium-tabs" aria-label="Profile content">{(["Posts", "Collections", "Replies", "Likes", "Saved"] as const).map((name) => <button key={name} className={tab === name ? "active" : ""} onClick={() => setTab(name)}>{name}{(name === "Likes" || name === "Saved") && <LockKeyhole size={12} />}</button>)}</div>
+      <div className="profile-feed profile-premium-feed">
+        {privateTab && <motion.div className="profile-note" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}><LockKeyhole size={16} /><span><strong>Only you can see this.</strong> {tab} stay private to your account.</span></motion.div>}
+        {tab === "Collections" && <motion.div className="profile-collection-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{profileCards.map((card, index) => <motion.button className="profile-collection-card" key={card.slug} onClick={() => onOpenCollection(previewFromCard(card))} whileHover={{ y: -4 }} whileTap={{ scale: 0.985 }} transition={{ delay: index * 0.05 }}><img src={card.image} alt="" /><span><small>{card.privacy} shelf</small><strong>{card.title}</strong><em>{card.count} objects <ChevronRight size={15} /></em></span></motion.button>)}</motion.div>}
+        {tab === "Replies" && <motion.div className="profile-reply-list" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>{comments.map((comment) => <article key={comment.id}><img src={comment.avatar} alt="" /><div><span>Replied to <strong>@{comment.handle}</strong></span><p>Exactly why I keep this shelf: the details get better with time.</p><small>{comment.time} - 12 likes</small></div></article>)}</motion.div>}
+        {(tab === "Posts" || privateTab) && feedItems.slice(privateTab ? 1 : 0, privateTab ? 3 : 2).map((item, index) => <FeedCard key={`${tab}-${item.id}`} item={item} index={index} liked={index === 0} saved={tab === "Saved"} wished={tab === "Likes"} onLike={() => {}} onSave={() => {}} onWish={() => {}} onComment={() => {}} onOpenCollection={(entry) => onOpenCollection({ title: entry.collection.split("/")[0]?.trim() || entry.collection, subtitle: entry.collection, count: 1, privacy: "Public", image: entry.image, ownerHandle: entry.author.handle, ownerName: entry.author.name })} />)}
+      </div>
+    </>
+  );
+}
+
+function PremiumContextRail({ view, navigate, onOpenCollector }: { view: View; navigate: (view: View) => void; onOpenCollector: (collector: CollectorPreview) => void }) {
+  const [following, setFollowing] = useState<string[]>([]);
+  return (
+    <motion.aside className="context-rail premium-context-rail" data-view={view} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.14, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
+      <div className="search-box global-search"><Search size={17} /><input placeholder="Search Klecto" aria-label="Search Klecto" /><kbd>CMD K</kbd></div>
+      <section className="side-card similarity-card"><div className="side-card-head"><span><Sparkles size={16} /> YOUR SIMILARITY</span><button onClick={() => navigate("matches")}>View all</button></div><div className="similarity-feature"><div className="side-ring">82%</div><span><strong>Great taste travels.</strong><p>You share 23 interests with collectors in your circle.</p></span></div><div className="overlap-avatars">{matches.map((match) => <button key={match.name} onClick={() => onOpenCollector(match)} aria-label={`Open ${match.name} profile`}><img src={match.avatar} alt="" /></button>)}<span>+18</span><small>collectors match above 70%</small></div></section>
+      <section className="side-card"><div className="side-card-head"><span><Compass size={16} /> PEOPLE TO KNOW</span><button onClick={() => navigate("matches")}>See all</button></div>{matches.slice(0, 3).map((match) => <div className="person-row premium-person-row" key={match.name}><button className="person-profile" onClick={() => onOpenCollector(match)}><img src={match.avatar} alt="" /><span><strong>{match.name}</strong><small>{match.score}% match - {match.shared[0]}</small></span></button><button className={following.includes(match.handle) ? "following" : ""} onClick={() => setFollowing((current) => current.includes(match.handle) ? current.filter((handle) => handle !== match.handle) : [...current, match.handle])}>{following.includes(match.handle) ? "Following" : "Follow"}</button></div>)}</section>
+      <section className="side-card prompt-card"><span>WEEKLY PROMPT - 04</span><h3>The piece you almost let go.</h3><p>Share its story with the community.</p><button className="secondary-button" onClick={() => navigate("home")}>Add your answer <ArrowLeft size={15} /></button></section>
+      <footer><span>About</span><span>Privacy</span><span>Guidelines</span><span>(c) 2026 Klecto</span></footer>
+    </motion.aside>
+  );
+}
+
+function PremiumCommentDrawer({ item, onClose }: { item: FeedItem; onClose: () => void }) {
+  const [draft, setDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<CommentReply | null>(null);
+  const [menuComment, setMenuComment] = useState<CommentReply | null>(null);
+  const [likedCommentIds, setLikedCommentIds] = useState<string[]>([]);
+  const [newComments, setNewComments] = useState<CommentRecord[]>([]);
+  const visibleComments = [...(comments as CommentRecord[]), ...newComments];
+
+  const submit = () => {
+    const body = draft.trim();
+    if (!body) return;
+    setNewComments((current) => [...current, { id: `comment-${Date.now()}`, name: "Arjun Kapoor", handle: "arjcollects", avatar: DEFAULT_AVATAR, body: replyingTo ? `@${replyingTo.handle} ${body}` : body, time: "now", likes: 0, replies: [] }]);
+    setDraft("");
+    setReplyingTo(null);
+  };
+
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.aside className="comment-drawer premium-comment-drawer" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 280 }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
+        <header><div><span className="eyebrow">CONVERSATION</span><h2>{item.comments + newComments.length} comments</h2></div><button className="icon-button" onClick={onClose} aria-label="Close comments"><X size={20} /></button></header>
+        <div className="comment-context"><img src={item.image} alt="" /><span><strong>{item.title}</strong><small>by {item.author.name}</small></span><button className="icon-button" aria-label="Open item"><ChevronRight size={18} /></button></div>
+        <div className="comment-sort"><span>Top comments</span><ChevronDown size={15} /><small>Hold a comment for options</small></div>
+        <div className="comment-tree premium-comment-tree">{visibleComments.map((comment) => <div className="comment-thread" key={comment.id}><InteractiveComment comment={comment} liked={likedCommentIds.includes(comment.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(comment.id) ? current.filter((id) => id !== comment.id) : [...current, comment.id])} onOpenMenu={setMenuComment} />{comment.replies.map((child) => <div className="nested-comment" key={child.id}><InteractiveComment comment={child} liked={likedCommentIds.includes(child.id)} onToggleLike={() => setLikedCommentIds((current) => current.includes(child.id) ? current.filter((id) => id !== child.id) : [...current, child.id])} onOpenMenu={setMenuComment} /></div>)}</div>)}</div>
+        <form className="comment-composer premium-comment-composer" onSubmit={(event) => { event.preventDefault(); submit(); }}><img src={DEFAULT_AVATAR} alt="" /><div>{replyingTo && <span className="replying-to">Replying to @{replyingTo.handle}<button type="button" onClick={() => setReplyingTo(null)}><X size={13} /></button></span>}<textarea placeholder="Add to the conversation..." value={draft} onChange={(event) => setDraft(event.target.value)} /><span><button type="button" aria-label="Add image"><ImagePlus size={17} /></button><button type="button" aria-label="Attach file"><Paperclip size={17} /></button><button className="primary-button" disabled={!draft.trim()}>Reply</button></span></div></form>
+        <AnimatePresence>{menuComment && <CommentActionSheet comment={menuComment} onClose={() => setMenuComment(null)} onReply={() => { setReplyingTo(menuComment); setMenuComment(null); }} />}</AnimatePresence>
+      </motion.aside>
+    </motion.div>
+  );
+}
+
+function InteractiveComment({ comment, liked, onToggleLike, onOpenMenu }: { comment: CommentReply; liked: boolean; onToggleLike: () => void; onOpenMenu: (comment: CommentReply) => void }) {
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearHold = () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; } };
+  useEffect(() => () => clearHold(), []);
+  const beginHold = (event: React.PointerEvent<HTMLElement>) => {
+    if ((event.pointerType === "mouse" && event.button !== 0) || (event.target as HTMLElement).closest("button")) return;
+    holdTimer.current = setTimeout(() => { onOpenMenu(comment); holdTimer.current = null; }, 560);
+  };
+  return <article className="comment interactive-comment" onPointerDown={beginHold} onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold} onPointerMove={clearHold}><img src={comment.avatar} alt="" /><div><div className="comment-name"><strong>{comment.name}</strong><span>@{comment.handle} - {comment.time}</span><button onClick={() => onOpenMenu(comment)} aria-label={`More options for ${comment.name}`}><MoreHorizontal size={17} /></button></div><p>{comment.body}</p><button className={`comment-like-count ${liked ? "liked" : ""}`} onClick={onToggleLike} aria-label={`Like comment by ${comment.name}`}><Heart size={15} fill={liked ? "currentColor" : "none"} /> <span>{comment.likes + (liked ? 1 : 0)}</span></button></div></article>;
+}
+
+function CommentActionSheet({ comment, onClose, onReply }: { comment: CommentReply; onClose: () => void; onReply: () => void }) {
+  useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => window.removeEventListener("keydown", onKeyDown); }, [onClose]);
+  const share = () => { if (navigator.clipboard) void navigator.clipboard.writeText(`${comment.name}: ${comment.body}`).catch(() => undefined); onClose(); };
+  return <motion.div className="comment-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="comment-action-sheet" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.97 }} transition={{ type: "spring", damping: 25, stiffness: 340 }} onClick={(event) => event.stopPropagation()}><div className="comment-action-summary"><img src={comment.avatar} alt="" /><span><strong>{comment.name}</strong><small>@{comment.handle}</small></span></div><button onClick={onReply}><MessageCircle size={18} /> Reply</button><button onClick={share}><Share2 size={18} /> Share comment</button><button className="danger" onClick={onClose}><Flag size={18} /> Report</button><button className="cancel" onClick={onClose}>Cancel</button></motion.div></motion.div>;
 }
 
 function CreateModal({ onClose, data }: { onClose: () => void; data: CatalogDashboardDTO }) {

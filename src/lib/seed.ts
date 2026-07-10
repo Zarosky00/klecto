@@ -153,7 +153,6 @@ export const matches = [
   {
     name: "Maya Chen",
     handle: "mayacurates",
-    handle: "mayacurates",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=85",
     score: 88,
     shared: ["Nike", "New Balance", "Film cameras"],
