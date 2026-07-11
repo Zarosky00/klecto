@@ -34,6 +34,12 @@ export type CollectionPostMutationInput = {
   visibility: Visibility;
 };
 
+export type WishlistPostMutationInput = {
+  targetType: "collection" | "subcollection" | "item";
+  targetId: string;
+  quoteText: string | null;
+};
+
 export type CollectionShareMutationInput = {
   collectionId: string;
   channel: "copy_link" | "external";
@@ -254,6 +260,52 @@ export async function createCollectionPostMutation(input: CollectionPostMutation
   if (error) {
     console.error("Collection post failed", error);
     return { ok: false, error: "Could not publish the collection post." };
+  }
+  return { ok: true, id: data.id };
+}
+
+/**
+ * A quoted wishlist is a post that points at exactly one catalog target. The
+ * target is resolved through the caller's RLS-scoped client instead of trusting
+ * a collection id sent by the browser, so a guessed private id cannot be
+ * attached to a public-looking wishlist.
+ */
+export async function createWishlistPostMutation(input: WishlistPostMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to add this to your wishlist." };
+
+  const targetResult = input.targetType === "collection"
+    ? await context.supabase.from("collections").select("id, user_id").eq("id", input.targetId).maybeSingle()
+    : input.targetType === "subcollection"
+      ? await context.supabase.from("subcollections").select("id, user_id").eq("id", input.targetId).maybeSingle()
+      : await context.supabase.from("items").select("id, user_id").eq("id", input.targetId).maybeSingle();
+
+  if (targetResult.error || !targetResult.data) {
+    return { ok: false, error: "This catalog entry is not available to wishlist." };
+  }
+  if (targetResult.data.user_id === context.identity.id) {
+    return { ok: false, error: "Wishlists are for another collector's catalog." };
+  }
+
+  const target = targetResult.data;
+  const post: Database["public"]["Tables"]["posts"]["Insert"] = {
+    author_id: context.identity.id,
+    kind: "wishlist",
+    quote_text: input.quoteText?.trim() || null,
+    visibility: "public",
+    collection_id: input.targetType === "collection" ? target.id : null,
+    subcollection_id: input.targetType === "subcollection" ? target.id : null,
+    item_id: input.targetType === "item" ? target.id : null,
+  };
+  const { data, error } = await context.supabase
+    .from("posts")
+    .insert(post)
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error("Wishlist post failed", error);
+    return { ok: false, error: "Could not publish that wishlist." };
   }
   return { ok: true, id: data.id };
 }

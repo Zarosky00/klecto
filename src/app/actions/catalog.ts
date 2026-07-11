@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   createCollectionMutation,
   createCollectionPostMutation,
+  createWishlistPostMutation,
   createCatalogCommentMutation,
   appendItemMediaMutation,
   createItemMutation,
@@ -56,6 +57,12 @@ const collectionPostSchema = z.object({
   collectionId: z.string().uuid(),
   body: nullableText(3000),
   visibility,
+});
+
+const wishlistPostSchema = z.object({
+  targetType: z.enum(["collection", "subcollection", "item"]),
+  targetId: z.string().uuid(),
+  quoteText: nullableText(600),
 });
 
 const collectionShareSchema = z.object({
@@ -173,6 +180,14 @@ export async function createCollectionPostAction(input: unknown): Promise<Action
   if (!parsed.success) return invalid(parsed.error);
   const result = await createCollectionPostMutation(parsed.data);
   if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
+export async function createWishlistPostAction(input: unknown): Promise<ActionResult> {
+  const parsed = wishlistPostSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createWishlistPostMutation(parsed.data);
+  if (result.ok) refreshCatalog();
   return result;
 }
 

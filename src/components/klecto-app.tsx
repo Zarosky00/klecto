@@ -45,9 +45,10 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import type { CatalogDashboardDTO, CollectionDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
+import type { CatalogDashboardDTO, CollectionDTO, DiscoveryFeedDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
 import { createCollectionAction, deleteCollectionAction, updateCollectionAction } from "@/app/actions/catalog";
 import { createClient } from "@/lib/supabase/client";
+import { DiscoveryHome } from "@/components/discovery-home";
 import {
   collectionCards,
   comments,
@@ -112,7 +113,7 @@ const moodLabels = {
 
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=85";
 
-export function KlectoApp({ initialData, initialView = "home" }: { initialData: CatalogDashboardDTO; initialView?: View }) {
+export function KlectoApp({ initialData, initialDiscovery, initialView = "home" }: { initialData: CatalogDashboardDTO; initialDiscovery: DiscoveryFeedDTO; initialView?: View }) {
   const [view, setView] = useState<View>(initialView);
   const [feedMode, setFeedMode] = useState<"For you" | "Following">("For you");
   const [filter, setFilter] = useState<FeedFilter>("Everything");
@@ -202,25 +203,7 @@ export function KlectoApp({ initialData, initialView = "home" }: { initialData: 
       <motion.main className="main-column" initial={{ opacity: 0, y: 20, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.06, duration: 0.56, ease: [0.16, 1, 0.3, 1] }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
-            {view === "home" && (
-              <HomeView
-                mode={feedMode}
-                setMode={setFeedMode}
-                filter={filter}
-                setFilter={setFilter}
-                items={visibleFeed}
-                liked={liked}
-                saved={saved}
-                wished={wished}
-                toggleLike={(id) => toggle(id, liked, setLiked)}
-                toggleSave={(id) => toggle(id, saved, setSaved)}
-                toggleWish={(id) => toggle(id, wished, setWished)}
-                onComment={setCommentItem}
-                onCreate={() => openCreate("item")}
-                onOpenCollector={setCollectorPreview}
-                onOpenCollection={openFeedCollection}
-              />
-            )}
+            {view === "home" && <DiscoveryHome feed={initialDiscovery} viewer={initialData.viewer} />}
             {view === "collections" && <CollectionsView onCreate={() => openCreate("collection")} data={initialData} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}

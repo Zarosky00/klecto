@@ -203,3 +203,56 @@ export type ActionResult = {
   created?: boolean;
   error?: string;
 };
+
+/**
+ * Small, deliberately public-safe shapes for the discovery feed. The feed
+ * always carries its catalog lineage, so a card can say exactly what it is
+ * and where it came from without exposing storage paths or private metadata.
+ */
+export type DiscoveryTargetKind = "collection" | "subcollection" | "item";
+
+export type DiscoveryAuthorDTO = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isVerified: boolean;
+};
+
+export type DiscoveryCatalogDTO = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
+export type DiscoverySubcollectionDTO = DiscoveryCatalogDTO & {
+  kind: "brand" | "series" | "era" | "custom";
+};
+
+export type DiscoveryFeedEntryDTO = {
+  /** A post id for a quoted wishlist, otherwise a stable catalog-prefixed id. */
+  id: string;
+  kind: DiscoveryTargetKind | "wishlist";
+  targetKind: DiscoveryTargetKind;
+  targetId: string;
+  author: DiscoveryAuthorDTO;
+  collection: DiscoveryCatalogDTO;
+  subcollection: DiscoverySubcollectionDTO | null;
+  title: string;
+  description: string | null;
+  quoteText: string | null;
+  imageUrls: string[];
+  imageCount: number;
+  mood: ItemMood | null;
+  createdAt: string;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
+  sourceHref: string;
+};
+
+export type DiscoveryFeedDTO = {
+  entries: DiscoveryFeedEntryDTO[];
+  /** Used only when the connected project has no public catalog content yet. */
+  isDemoFallback: boolean;
+};
