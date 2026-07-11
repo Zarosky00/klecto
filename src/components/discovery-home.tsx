@@ -13,6 +13,7 @@ import {
   Ellipsis,
   Eye,
   Flag,
+  FolderOpen,
   Heart,
   Image as ImageIcon,
   Layers3,
@@ -50,15 +51,18 @@ type ViewerDiscovery = {
   eyebrow: string;
   imageUrl: string;
   current?: boolean;
+  subcollectionId?: string | null;
+  subcollectionSlug?: string | null;
+  subcollectionName?: string | null;
 };
 
 const demoViewerDiscoveries: ViewerDiscovery[] = [
-  { id: "demo-arcade", title: "After-school arcade", eyebrow: "The toy box", imageUrl: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=82" },
-  { id: "demo-bricks", title: "The brick drawer", eyebrow: "Building sets", imageUrl: "https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?auto=format&fit=crop&w=900&q=82" },
-  { id: "demo-console", title: "First home console", eyebrow: "Weekend games", imageUrl: "https://images.unsplash.com/photo-1486401899868-0e435ed85128?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-arcade", title: "After-school arcade", eyebrow: "The toy box", subcollectionSlug: "toy-box", subcollectionName: "The toy box", imageUrl: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-bricks", title: "The brick drawer", eyebrow: "Building sets", subcollectionSlug: "toy-box", subcollectionName: "The toy box", imageUrl: "https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-console", title: "First home console", eyebrow: "Weekend games", subcollectionSlug: "toy-box", subcollectionName: "The toy box", imageUrl: "https://images.unsplash.com/photo-1486401899868-0e435ed85128?auto=format&fit=crop&w=900&q=82" },
   { id: "demo-camera", title: "Pocket camera", eyebrow: "Weekend cameras", imageUrl: "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=900&q=82" },
-  { id: "demo-tickets", title: "Tickets worth keeping", eyebrow: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=82" },
-  { id: "demo-postcards", title: "Postcards from home", eyebrow: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1524348881814-1103f883e71c?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-tickets", title: "Tickets worth keeping", eyebrow: "Paper trail", subcollectionSlug: "paper-trail", subcollectionName: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-postcards", title: "Postcards from home", eyebrow: "Paper trail", subcollectionSlug: "paper-trail", subcollectionName: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1524348881814-1103f883e71c?auto=format&fit=crop&w=900&q=82" },
 ];
 
 type DiscoveryFilter = "all" | "collection" | "subcollection" | "item" | "wishlist";
@@ -215,7 +219,10 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     };
     if (feed.isDemoFallback) {
       addLocalComment();
-      if (closeDrawer) setCommentTarget(null);
+      if (closeDrawer) {
+        setCommentTarget(null);
+        setCommentOverMedia(false);
+      }
       return showNotice("Comment added to this demo shelf.");
     }
     startTransition(() => {
@@ -229,7 +236,10 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
         });
         if (!result.ok) return showNotice(result.error ?? "Could not add the comment.");
         addLocalComment();
-        if (closeDrawer) setCommentTarget(null);
+        if (closeDrawer) {
+          setCommentTarget(null);
+          setCommentOverMedia(false);
+        }
         showNotice("Comment posted.");
       })();
     });
@@ -289,11 +299,11 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     setMediaTarget(previewItemEntry(item));
   };
   const openPreviewComment = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
-    closePost();
+    const preview = previewItemEntry(item);
     setCatalogTarget(null);
-    setMediaTarget(null);
-    setCommentOverMedia(false);
-    setCommentTarget(previewItemEntry(item));
+    setMediaTarget(preview);
+    setCommentOverMedia(true);
+    setCommentTarget(preview);
   };
   const openPreviewWishlist = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
     closePost();
@@ -344,23 +354,23 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
       {visibleEntries.length === 0 && <div className={styles.empty}><Layers3 size={22} /><strong>No matching shelves yet.</strong><span>Try another part of the catalogue.</span></div>}
 
       <AnimatePresence>
-        {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} overMedia={commentOverMedia} onClose={() => { setCommentTarget(null); setCommentOverMedia(false); }} onSubmit={addComment} />}
-        {wishlistTarget && <WishlistComposer entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
-        {postTarget && <PostDetail entry={postTarget} demo={feed.isDemoFallback} viewer={viewer} pending={isPending} onClose={closePost}
+        {wishlistTarget && <WishlistComposer key="wishlist-composer" entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
+        {postTarget && <PostDetail key="post-detail" entry={postTarget} demo={feed.isDemoFallback} viewer={viewer} pending={isPending} onClose={closePost}
           onLike={() => toggleLike(postTarget)} onWishlist={() => setWishlistTarget(postTarget)}
           onMedia={() => setMediaTarget(postTarget)}
           onEngagement={(kind) => setEngagementTarget({ entry: postTarget, kind })}
           onSubmitComment={(body, parentId) => addCommentForTarget(postTarget, body, false, parentId)} />}
-        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)}
+        {mediaTarget && <MediaViewer key="media-viewer" entry={mediaTarget} onClose={() => setMediaTarget(null)}
           onLike={() => toggleLike(mediaTarget)}
           onComment={() => { setCommentOverMedia(true); setCommentTarget(mediaTarget); }}
           onWishlist={() => { setMediaTarget(null); setWishlistTarget(mediaTarget); }} />}
-        {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
+        {catalogTarget && <CatalogExplorerSheet key="catalog-explorer" entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
           onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
-        {wishlisterTarget && <EngagementSheet entry={wishlisterTarget} kind="wishlist" demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
-        {engagementTarget && <EngagementSheet entry={engagementTarget.entry} kind={engagementTarget.kind} demo={feed.isDemoFallback} onClose={() => setEngagementTarget(null)} />}
-        {profileActionTarget && <ProfileActionSheet entry={profileActionTarget} demo={feed.isDemoFallback} onClose={() => setProfileActionTarget(null)} />}
-        {notice && <motion.div className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
+        {wishlisterTarget && <EngagementSheet key="wishlist-engagement" entry={wishlisterTarget} kind="wishlist" demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
+        {engagementTarget && <EngagementSheet key="post-engagement" entry={engagementTarget.entry} kind={engagementTarget.kind} demo={feed.isDemoFallback} onClose={() => setEngagementTarget(null)} />}
+        {profileActionTarget && <ProfileActionSheet key="profile-actions" entry={profileActionTarget} demo={feed.isDemoFallback} onClose={() => setProfileActionTarget(null)} />}
+        {commentTarget && <CommentDrawer key={`comment-drawer-${commentOverMedia ? "media" : "feed"}`} entry={commentTarget} pending={isPending} overMedia={commentOverMedia} onClose={() => { setCommentTarget(null); setCommentOverMedia(false); }} onSubmit={addComment} />}
+        {notice && <motion.div key="discovery-notice" className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
       </AnimatePresence>
     </section>
   );
@@ -503,7 +513,7 @@ function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry
   };
   return createPortal(
     <motion.div className={`${styles.sheetBackdrop} ${overMedia ? styles.sheetBackdropOverMedia : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.aside className={`${styles.sheet} ${styles.commentDrawer}`} initial={{ x: 36, opacity: 0.7 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 36, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
+      <motion.aside className={`${styles.sheet} ${styles.commentDrawer} ${overMedia ? styles.commentDrawerOverMedia : ""}`} initial={overMedia ? { y: 56, opacity: 0.65 } : { x: 36, opacity: 0.7 }} animate={overMedia ? { y: 0, opacity: 1 } : { x: 0, opacity: 1 }} exit={overMedia ? { y: 42, opacity: 0.6 } : { x: 36, opacity: 0.7 }} transition={{ type: "spring", stiffness: 340, damping: 31 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
         <div className={styles.sheetHandle} />
         <header><div><span>CONVERSATION</span><h3>{entry.commentCount} comments</h3></div><button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button></header>
         <div className={styles.commentContext}>
@@ -545,6 +555,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   const didPinch = useRef(false);
   const lastImageTap = useRef(0);
   const relatedDiscoveries = useMemo(() => {
+    const subcollectionsById = new Map(entry.catalogPreview.subcollections.map((section) => [section.id, section]));
     const currentImage = entry.imageUrls[0];
     const current: ViewerDiscovery[] = currentImage ? [{
       id: `${entry.id}-current`,
@@ -552,26 +563,42 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
       eyebrow: "Currently viewing",
       imageUrl: currentImage,
       current: true,
+      subcollectionId: entry.subcollection?.id ?? null,
+      subcollectionSlug: entry.subcollection?.slug ?? null,
+      subcollectionName: entry.subcollection?.name ?? null,
     }] : [];
-    const sections = entry.catalogPreview.subcollections
+    const sections: ViewerDiscovery[] = entry.catalogPreview.subcollections
       .filter((section) => Boolean(section.coverUrl))
       .map((section) => ({
         id: `section-${section.id}`,
         title: section.name,
         eyebrow: `${section.itemCount} ${section.itemCount === 1 ? "object" : "objects"}`,
         imageUrl: section.coverUrl!,
+        subcollectionId: section.id,
+        subcollectionSlug: section.slug,
+        subcollectionName: section.name,
       }));
-    const items = entry.catalogPreview.items
+    const items: ViewerDiscovery[] = entry.catalogPreview.items
       .filter((item) => Boolean(item.imageUrl))
-      .map((item) => ({
-        id: `item-${item.id}`,
-        title: item.title,
-        eyebrow: item.subcollectionName ?? entry.collection.name,
-        imageUrl: item.imageUrl!,
-      }));
+      .map((item) => {
+        const section = item.subcollectionId ? subcollectionsById.get(item.subcollectionId) : null;
+        return {
+          id: `item-${item.id}`,
+          title: item.title,
+          eyebrow: item.subcollectionName ?? entry.collection.name,
+          imageUrl: item.imageUrl!,
+          subcollectionId: item.subcollectionId,
+          subcollectionSlug: section?.slug ?? null,
+          subcollectionName: item.subcollectionName,
+        };
+      });
     const samples = entry.id.startsWith("demo-") ? demoViewerDiscoveries : [];
     const seen = new Set<string>();
-    return [...current, ...items, ...sections, ...samples].filter((discovery) => {
+    const discoveries = [...current, ...items, ...sections, ...samples];
+    const scopedDiscoveries = !entry.id.startsWith("demo-") && entry.subcollection
+      ? discoveries.filter((discovery) => discovery.current || discovery.subcollectionId === entry.subcollection?.id)
+      : discoveries;
+    return scopedDiscoveries.filter((discovery) => {
       if (seen.has(discovery.imageUrl)) return false;
       seen.add(discovery.imageUrl);
       return true;
@@ -632,21 +659,31 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     const now = Date.now();
     if (now - lastImageTap.current < 320) return;
     lastImageTap.current = now;
-    setRelatedOpen(false);
     setImmersive((active) => !active);
   };
   const exploreDiscovery = (discovery: ViewerDiscovery) => {
-    setPreviewDiscovery(discovery);
-  };
-  const showDiscoveryInViewer = (discovery: ViewerDiscovery) => {
     setSelectedDiscovery(discovery.current ? null : discovery);
-    setPreviewDiscovery(null);
     setActiveIndex(0);
     setZoom(1);
     setImmersive(false);
+    setPreviewDiscovery(discovery);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
-    window.setTimeout(() => viewerRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 30);
   };
+  const activeSubcollectionSlug = selectedDiscovery?.subcollectionSlug ?? entry.subcollection?.slug ?? null;
+  const activeSubcollectionName = selectedDiscovery?.subcollectionName
+    ?? (selectedDiscovery && !selectedDiscovery.current ? selectedDiscovery.eyebrow : null)
+    ?? entry.subcollection?.name
+    ?? entry.collection.name;
+  const activeSubcollectionId = selectedDiscovery?.subcollectionId ?? entry.subcollection?.id ?? null;
+  const visibleRelatedDiscoveries = !entry.id.startsWith("demo-") && activeSubcollectionId
+    ? relatedDiscoveries.filter((discovery) => discovery.subcollectionId === activeSubcollectionId)
+    : relatedDiscoveries;
+  const catalogueHref = activeSubcollectionSlug
+    ? entry.id.startsWith("demo-")
+      ? `/demo/collections/${encodeURIComponent(entry.collection.slug)}/subcollections/${encodeURIComponent(activeSubcollectionSlug)}`
+      : `${entry.sourceHref}${entry.sourceHref.includes("?") ? "&" : "?"}subcollection=${encodeURIComponent(activeSubcollectionSlug)}`
+    : entry.sourceHref;
+  const relatedScopeLabel = activeSubcollectionSlug ? "OBJECTS IN THIS SUBCOLLECTION" : "SECTIONS AND OBJECTS IN THIS COLLECTION";
   const sharePhoto = () => {
     const url = window.location.href;
     if (navigator.share) {
@@ -658,7 +695,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   return createPortal(
     <motion.div className={`${styles.mediaBackdrop} ${relatedOpen ? styles.mediaBackdropExpanded : ""} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section ref={viewerRef} layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
-        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTO CLOSE-UP"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTO CLOSE-UP"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><div className={styles.mediaViewerHeaderActions}><motion.a href={catalogueHref} className={styles.mediaViewerHeaderAction} whileTap={{ scale: 0.9 }} aria-label={`Open ${activeSubcollectionSlug ? activeSubcollectionName : entry.collection.name}`} title={`Open ${activeSubcollectionSlug ? activeSubcollectionName : entry.collection.name}`}><FolderOpen size={18} /></motion.a><button type="button" className={styles.mediaViewerHeaderAction} onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></div></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
           const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
@@ -677,9 +714,9 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
         </footer>
         <AnimatePresence initial={false}>
           {relatedOpen && <motion.aside id="media-related-discoveries" className={styles.mediaRelatedPanel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}>
-            <div className={styles.mediaRelatedHead}><div><span>MORE FROM THIS CATALOGUE</span><strong>More like this</strong></div><small>{relatedDiscoveries.length} finds</small></div>
+            <div className={styles.mediaRelatedHead}><div><span>{relatedScopeLabel}</span><strong>{activeSubcollectionName}</strong></div><small>{visibleRelatedDiscoveries.length} {visibleRelatedDiscoveries.length === 1 ? "object" : "objects"}</small></div>
             <div className={styles.mediaRelatedMasonry}>
-              {relatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={`${styles.mediaRelatedCard} ${(selectedDiscovery?.id ?? `${entry.id}-current`) === discovery.id ? styles.mediaRelatedCardActive : ""}`} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Preview ${discovery.title}`}>
+              {visibleRelatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={`${styles.mediaRelatedCard} ${(selectedDiscovery?.id ?? `${entry.id}-current`) === discovery.id ? styles.mediaRelatedCardActive : ""}`} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Preview ${discovery.title}`}>
                 <img src={discovery.imageUrl} alt="" />
                 <span><small>{discovery.eyebrow}</small><strong>{discovery.title}</strong></span>
               </motion.button>)}
@@ -692,7 +729,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
           <motion.article className={styles.mediaPinPreview} initial={{ opacity: 0, y: 42, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30, scale: 0.96 }} transition={{ type: "spring", stiffness: 330, damping: 30 }} onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className={styles.mediaPinPreviewClose} onClick={() => setPreviewDiscovery(null)} aria-label="Close related image preview"><X size={19} /></button>
             <img src={previewDiscovery.imageUrl} alt={previewDiscovery.title} />
-            <div><span>{previewDiscovery.eyebrow}</span><h4>{previewDiscovery.title}</h4><button type="button" onClick={() => showDiscoveryInViewer(previewDiscovery)}>Show in viewer</button></div>
+            <div><span>{previewDiscovery.eyebrow}</span><h4>{previewDiscovery.title}</h4></div>
           </motion.article>
         </motion.div>}
       </AnimatePresence>

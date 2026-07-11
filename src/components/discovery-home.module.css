@@ -68,8 +68,11 @@
 .mediaViewer header > div { min-width: 0; }
 .mediaViewer header > div > span { color: #7f8776; font-size: 9px; letter-spacing: .12em; }
 .mediaViewer header h3 { overflow: hidden; color: #191917; font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 760; letter-spacing: -.035em; line-height: 1.08; text-overflow: ellipsis; white-space: nowrap; }
-.mediaViewer header > button { flex: 0 0 auto; border: 0; border-radius: 50%; background: #f0f0ec; color: #252522; }
-.mediaViewer header > button:hover { background: #e6e6e1; transform: scale(1.03); }
+.mediaViewerHeaderActions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
+.mediaViewerHeaderActions .mediaViewerHeaderAction { display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 50%; background: #f0f0ec; box-shadow: inset 0 0 0 1px rgb(38 38 34 / 5%); color: #252522; padding: 0; text-decoration: none; transition: background .2s ease, box-shadow .2s ease, transform .2s ease; }
+.mediaViewerHeaderActions .mediaViewerHeaderAction:first-child { background: #22221f; box-shadow: 0 8px 20px rgb(24 24 20 / 16%); color: #fffefa; }
+.mediaViewerHeaderActions .mediaViewerHeaderAction:hover { background: #e6e6e1; transform: translateY(-1px) scale(1.02); }
+.mediaViewerHeaderActions .mediaViewerHeaderAction:first-child:hover { background: #363631; }
 .mediaViewerAuthor { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: #252522; text-decoration: none; }
 .mediaViewerAuthor:hover strong { text-decoration: underline; }
 .mediaViewerAvatar { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; overflow: hidden; border: 1px solid #e5e5df; border-radius: 50%; background: #e9ebE4; color: #30352b; font-size: 11px; font-weight: 800; }
@@ -80,10 +83,10 @@
 .mediaTrack { display: flex; box-sizing: border-box; width: 100%; max-height: min(68dvh, 660px); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior: contain; scrollbar-width: none; background: #f2f2ef; padding: 14px 0; touch-action: pan-x pinch-zoom; -webkit-overflow-scrolling: touch; }
 .mediaTrack::-webkit-scrollbar { display: none; }
 .mediaTrack > img, .mediaEmpty { display: block; flex: 0 0 100%; width: 100%; min-height: 352px; max-height: calc(min(68dvh, 660px) - 28px); object-fit: contain; scroll-snap-align: start; background: #e8e8e4; user-select: none; cursor: zoom-in; }
-.mediaTrack > img { flex-basis: calc(100% - 32px); width: calc(100% - 32px); margin: 0 16px; border-radius: 24px; box-shadow: 0 10px 28px rgb(22 22 20 / 10%); transform-origin: center center; transition: transform .16s ease, box-shadow .25s ease; }
+.mediaTrack > img { box-sizing: border-box; flex-basis: calc(100% - 32px); width: calc(100% - 32px); margin: 0 16px; border: 1px solid #d9d9d2; border-radius: 24px; clip-path: inset(0 round 24px); box-shadow: 0 10px 28px rgb(22 22 20 / 10%), 0 0 0 1px rgb(255 255 255 / 75%) inset; transform-origin: center center; transition: transform .16s ease, box-shadow .25s ease; }
 .mediaTrack > img:hover { box-shadow: 0 15px 36px rgb(22 22 20 / 16%); }
 .mediaViewerFullscreen .mediaTrack { max-height: none; height: 100dvh; background: #11110f; padding: 0; }
-.mediaViewerFullscreen .mediaTrack > img { flex-basis: 100%; width: 100%; min-height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; box-shadow: none; cursor: zoom-out; }
+.mediaViewerFullscreen .mediaTrack > img { flex-basis: 100%; width: 100%; min-height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; clip-path: none; box-shadow: none; cursor: zoom-out; }
 .mediaEmpty { display: grid; place-content: center; justify-items: center; gap: 9px; color: #777771; font-size: 12px; }
 .mediaViewer footer { min-height: 48px; border-top: 1px solid #ecece7; background: #fffefa; color: #666661; font-size: 11px; }
 .viewCollectionButton { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgb(222 255 132 / 32%); border-radius: 10px; background: rgb(222 255 132 / 11%); color: #e3f99b; padding: 7px 9px; font-size: 10px; font-weight: 800; }
@@ -107,8 +110,8 @@
 .mediaRelatedHead { position: sticky; z-index: 2; top: 0; display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 18px 18px 14px; background: rgb(255 254 250 / 95%); backdrop-filter: blur(14px); }
 .mediaRelatedHead div { display: grid; gap: 3px; }
 .mediaRelatedHead span { color: #85857e; font-size: 8px; font-weight: 850; letter-spacing: .14em; }
-.mediaRelatedHead strong { font-family: Arial, Helvetica, sans-serif; font-size: 21px; font-weight: 780; letter-spacing: -.035em; }
-.mediaRelatedHead small { color: #85857f; font-size: 10px; }
+.mediaRelatedHead strong { font-family: Arial, Helvetica, sans-serif; font-size: 19px; font-weight: 780; letter-spacing: -.025em; }
+.mediaRelatedHead small { flex: 0 0 auto; color: #85857f; font-size: 10px; }
 .mediaRelatedMasonry { columns: 3 150px; column-gap: 10px; padding: 0 14px 20px; }
 .mediaRelatedCard { display: inline-grid; width: 100%; overflow: visible; break-inside: avoid; grid-template-rows: auto auto; margin: 0 0 13px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #2b2b28; padding: 0; text-align: left; transition: transform .22s ease; }
 .mediaRelatedCard:hover { transform: translateY(-3px); }
@@ -121,14 +124,14 @@
 .mediaRelatedCard small { overflow: hidden; color: #8a8a83; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .mediaRelatedCard strong { font-size: 11px; line-height: 1.25; }
 .mediaPinPreviewBackdrop { position: fixed; z-index: 10030; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(24 24 22 / 58%); backdrop-filter: blur(12px); }
-.mediaPinPreview { position: relative; width: min(520px, 100%); overflow: hidden; border-radius: 28px; background: #fffefa; box-shadow: 0 30px 90px rgb(15 15 13 / 35%); }
-.mediaPinPreview > img { display: block; width: 100%; max-height: min(68dvh, 620px); border-radius: 28px 28px 20px 20px; object-fit: contain; background: #eeeeea; }
-.mediaPinPreview > div { display: grid; gap: 4px; padding: 15px 18px 18px; }
-.mediaPinPreview > div > span { color: #85857f; font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-.mediaPinPreview h4 { margin: 0; color: #20201d; font-size: 19px; letter-spacing: -.02em; }
-.mediaPinPreview > div > button { justify-self: start; margin-top: 8px; border: 0; border-radius: 999px; background: #22221f; color: #fff; padding: 10px 15px; font-size: 11px; font-weight: 800; }
+.mediaPinPreview { position: relative; isolation: isolate; width: min(520px, 100%); overflow: hidden; border-radius: 28px; background: #171714; box-shadow: 0 30px 90px rgb(15 15 13 / 35%); }
+.mediaPinPreview > img { display: block; width: 100%; min-height: 280px; max-height: min(80dvh, 720px); border-radius: 28px; object-fit: contain; background: #eeeeea; }
+.mediaPinPreview > div { position: absolute; z-index: 1; right: 0; bottom: 0; left: 0; display: grid; gap: 4px; padding: 70px 18px 18px; background: linear-gradient(180deg, transparent, rgb(18 18 16 / 78%)); color: #fffefa; pointer-events: none; }
+.mediaPinPreview > div > span { color: #dce9b4; font-size: 9px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.mediaPinPreview h4 { margin: 0; color: #fffefa; font-size: 19px; letter-spacing: -.02em; }
 .mediaPinPreviewClose { position: absolute; z-index: 2; top: 12px; right: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 50%; background: rgb(255 255 255 / 92%); box-shadow: 0 5px 18px rgb(0 0 0 / 16%); color: #20201d; }
-.sheetBackdrop.sheetBackdropOverMedia { z-index: 10040; }
+.sheetBackdrop.sheetBackdropOverMedia { z-index: 11050 !important; isolation: isolate; background: rgb(20 20 18 / 46%); backdrop-filter: blur(12px); }
+.commentDrawerOverMedia { width: min(620px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
 .postBackdrop { z-index: 1000; align-items: stretch; padding: 0; background: #f7f6f0; backdrop-filter: none; }
 .postDetail { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100dvh; max-height: none; overflow: hidden; border: 0; border-radius: 0; background: #fffefa; box-shadow: none; color: #283120; }
 .postDetail > header { border-bottom: 1px solid #edf0e5; }
@@ -209,9 +212,9 @@
   .mediaViewer { max-height: calc(100dvh - 16px); border-radius: 24px; }
   .mediaViewer header { padding: 14px 14px 12px; }
   .mediaViewer header h3 { font-size: 21px; }
-  .mediaViewer header > button { width: 36px; height: 36px; }
-  .mediaTrack { padding-block: 10px; }
-  .mediaTrack > img { flex-basis: calc(100% - 20px); width: calc(100% - 20px); min-height: 330px; max-height: calc(min(68dvh, 660px) - 20px); margin-inline: 10px; border-radius: 22px; }
+  .mediaViewerHeaderActions .mediaViewerHeaderAction { width: 36px; height: 36px; }
+  .mediaTrack { background: #fffefa; padding-block: 10px; }
+  .mediaTrack > img { flex-basis: calc(100% - 20px); width: calc(100% - 20px); min-height: 330px; max-height: calc(min(68dvh, 660px) - 20px); margin-inline: 10px; border-color: #d4d4cc; border-radius: 22px; clip-path: inset(0 round 22px); box-shadow: 0 12px 30px rgb(25 25 22 / 13%), 0 0 0 1px rgb(255 255 255 / 85%) inset; }
   .mediaFooterMain { gap: 7px; padding-inline: 12px; }
   .mediaCreatorBar { padding: 10px 12px 7px; }
   .mediaViewerAvatar { width: 32px; height: 32px; }
@@ -229,7 +232,8 @@
   .mediaRelatedCard > span { padding: 7px 4px 2px; }
   .mediaPinPreviewBackdrop { align-items: end; padding: 0; }
   .mediaPinPreview { width: 100%; max-height: calc(100dvh - 10px); border-radius: 26px 26px 0 0; }
-  .mediaPinPreview > img { max-height: 68dvh; border-radius: 26px 26px 18px 18px; }
+  .mediaPinPreview > img { max-height: 82dvh; border-radius: 26px 26px 0 0; }
+  .commentDrawerOverMedia { min-height: min(620px, calc(100dvh - 14px)); max-height: calc(100dvh - 14px); border-radius: 25px 25px 0 0; }
 }
 @media (max-width: 780px) {
   :global(.feed-header) { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgb(255 254 250 / 97%) !important; }

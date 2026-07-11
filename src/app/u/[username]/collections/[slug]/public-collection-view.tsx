@@ -67,9 +67,11 @@ function ViewCount({ count, variant = "card" }: { count: number; variant?: "hero
 export function PublicCollectionView({
   profile,
   collection,
+  initialSubcollectionSlug,
 }: {
   profile: PublicProfileDTO;
   collection: PublicProfileCollectionDTO;
+  initialSubcollectionSlug?: string;
 }) {
   const [collectionReaction, setCollectionReaction] = useState(() => reactionFrom(collection));
   const [subcollectionReactions, setSubcollectionReactions] = useState<Record<string, ReactionState>>(() => Object.fromEntries(
@@ -80,7 +82,11 @@ export function PublicCollectionView({
   ));
   const [comments, setComments] = useState<CatalogCommentDTO[]>(collection.comments);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [activeSubcollection, setActiveSubcollection] = useState<PublicProfileSubcollectionDTO | null>(null);
+  const [activeSubcollection, setActiveSubcollection] = useState<PublicProfileSubcollectionDTO | null>(() => (
+    initialSubcollectionSlug
+      ? collection.subcollections.find((entry) => entry.slug === initialSubcollectionSlug) ?? null
+      : null
+  ));
   const [activeItem, setActiveItem] = useState<PublicProfileItemDTO | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
