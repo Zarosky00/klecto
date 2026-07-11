@@ -69,11 +69,13 @@ function entrySource(entry: DiscoveryFeedEntryDTO) {
 
 function relativeTime(value: string) {
   const difference = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(difference / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(difference / 3_600_000);
-  if (hours < 1) return "now";
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}d` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
+  return days < 7 ? `${days}d ago` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
 }
 
 function updateEntry(entries: DiscoveryFeedEntryDTO[], id: string, recipe: (entry: DiscoveryFeedEntryDTO) => DiscoveryFeedEntryDTO) {
@@ -299,7 +301,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
       <div className="feed-list">
         <AnimatePresence initial={false} mode="popLayout">
           {visibleEntries.map((entry, index) => (
-            <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} pending={isPending}
+            <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} viewer={viewer} pending={isPending}
               onLike={() => toggleLike(entry)} onComment={() => setCommentTarget(entry)} onWishlist={() => setWishlistTarget(entry)}
               onMedia={() => setMediaTarget(entry)} onOpenPost={() => openPost(entry)} onWishlisters={() => setWishlisterTarget(entry)} />
           ))}
@@ -327,10 +329,11 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
   );
 }
 
-function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishlist, onMedia, onOpenPost, onWishlisters }: {
+function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment, onWishlist, onMedia, onOpenPost, onWishlisters }: {
   entry: DiscoveryFeedEntryDTO;
   index: number;
   demo: boolean;
+  viewer: ViewerDTO | null;
   pending: boolean;
   onLike: () => void;
   onComment: () => void;
@@ -340,6 +343,8 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
   onWishlisters: () => void;
 }) {
   const isWishlist = entry.kind === "wishlist";
+  const [following, setFollowing] = useState(false);
+  const canFollow = !viewer || viewer.id !== entry.author.id;
   const sourceCard = (
     <>
       <a href={entry.sourceHref} className={`collection-label ${styles.collectionLabel}`}>
@@ -376,9 +381,9 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
       <div className="post-head">
         <a href={demo ? entry.sourceHref : `/u/${encodeURIComponent(entry.author.username)}`} className="author">
           {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span className={styles.avatarFallback}>{entry.author.displayName.slice(0, 1)}</span>}
-          <span><strong>{entry.author.displayName}{entry.author.isVerified && <ShieldCheck size={14} />}</strong><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></span>
+          <span><strong>{entry.author.displayName}{entry.author.isVerified && <ShieldCheck size={14} />}</strong><small>@{entry.author.username} · {relativeTime(entry.createdAt)}</small></span>
         </a>
-        <button type="button" className="icon-button" aria-label="More catalog options"><Ellipsis size={19} /></button>
+        <div className={styles.cardAuthorActions}>{canFollow && <button type="button" className={`${styles.cardFollowButton} ${following ? styles.following : ""}`} onClick={() => setFollowing((current) => !current)}>{following ? <Check size={13} /> : <UserPlus size={13} />}<span>{following ? "Following" : "Follow"}</span></button>}<button type="button" className="icon-button" aria-label="More catalog options"><Ellipsis size={19} /></button></div>
       </div>
       {isWishlist && entry.quoteText && <p className={styles.quote}>{entry.quoteText}</p>}
       {isWishlist
@@ -447,7 +452,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
           {comments.map((comment) => (
             <article key={comment.id} className={styles.commentRow} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("a, button")) startPress(comment); }} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerMove={cancelPress}>
               {comment.author.avatarUrl ? <img src={comment.author.avatarUrl} alt="" /> : <span>{comment.author.displayName.slice(0, 1)}</span>}
-              <div><strong>{comment.author.displayName}<small>@{comment.author.username} / {relativeTime(comment.createdAt)}</small></strong><button type="button" className={styles.commentRowMore} onPointerDown={cancelPress} onClick={() => setMenuTarget(comment)} aria-label="More comment options"><Ellipsis size={16} /></button><p>{comment.body}</p><div className={styles.commentRowActions}><button type="button" className={likedComments.has(comment.id) ? styles.commentLiked : undefined} onClick={() => setLikedComments((current) => { const next = new Set(current); if (next.has(comment.id)) next.delete(comment.id); else next.add(comment.id); return next; })}><Heart size={14} fill={likedComments.has(comment.id) ? "currentColor" : "none"} /> {(comment.likeCount ?? 0) + (likedComments.has(comment.id) ? 1 : 0)}</button><button type="button" onClick={() => replyTo(comment)}>Reply</button></div></div>
+            <div><strong>{comment.author.displayName}<small>@{comment.author.username} · {relativeTime(comment.createdAt)}</small></strong><button type="button" className={styles.commentRowMore} onPointerDown={cancelPress} onClick={() => setMenuTarget(comment)} aria-label="More comment options"><Ellipsis size={16} /></button><p>{comment.body}</p><div className={styles.commentRowActions}><button type="button" className={likedComments.has(comment.id) ? styles.commentLiked : undefined} onClick={() => setLikedComments((current) => { const next = new Set(current); if (next.has(comment.id)) next.delete(comment.id); else next.add(comment.id); return next; })}><Heart size={14} fill={likedComments.has(comment.id) ? "currentColor" : "none"} /> {(comment.likeCount ?? 0) + (likedComments.has(comment.id) ? 1 : 0)}</button><button type="button" onClick={() => replyTo(comment)}>Reply</button></div></div>
             </article>
           ))}
           {!entry.comments.length && <div className={styles.commentEmpty}><MessageCircle size={20} /><span>No replies yet. Be the first to add to this shelf.</span></div>}
@@ -673,7 +678,7 @@ function PostDetail({ entry, demo, viewer, pending, onClose, onLike, onWishlist,
           <div className={styles.postAuthorRow}>
             <a href={demo ? entry.sourceHref : `/u/${encodeURIComponent(entry.author.username)}`} className={styles.postAuthor}>
               {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span>{entry.author.displayName.slice(0, 1)}</span>}
-              <div><b>{entry.author.displayName}</b><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></div>
+              <div><b>{entry.author.displayName}</b><small>@{entry.author.username} · {relativeTime(entry.createdAt)}</small></div>
             </a>
             {canFollow && <button type="button" className={`${styles.followButton} ${isFollowing ? styles.following : ""}`} onClick={() => setIsFollowing((current) => !current)}>{isFollowing ? <><Check size={14} /> Following</> : <><UserPlus size={14} /> Follow</>}</button>}
           </div>
