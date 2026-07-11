@@ -207,9 +207,9 @@
 .followButton.following { border-color: #cad6b6; background: #edf3df; box-shadow: none; color: #5d713c; }
 .followButton.following:hover { background: #e2ecd0; }
 .cardAuthorActions { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; }
-.cardFollowButton { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; border: 1px solid #d6e2bd; border-radius: 9px 9px 9px 3px; background: #f7fbe9; color: #5e7338; padding: 0 8px; font-size: 9px; font-weight: 850; transition: background .2s ease, transform .2s ease; }
-.cardFollowButton:hover { background: #eaf3d7; transform: translateY(-1px); }
-.cardFollowButton.following { border-color: #cfdac3; background: #f0f3eb; color: #75806d; }
+.cardFollowButton { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; border: 1px solid #20261a; border-radius: 9px 9px 9px 3px; background: #20261a; box-shadow: 0 7px 15px rgb(24 30 18 / 18%), inset 0 1px 0 rgb(255 255 255 / 14%); color: #f7faed; padding: 0 8px; font-size: 9px; font-weight: 850; transition: background .2s ease, transform .2s ease; }
+.cardFollowButton:hover { background: #354128; transform: translateY(-1px); }
+.cardFollowButton.following { border-color: #cbd3c1; background: #eef1e9; box-shadow: none; color: #65715d; }
 @media (max-width: 640px) {
   .cardFollowButton span { display: none; }
   .cardFollowButton { width: 28px; justify-content: center; padding: 0; }
