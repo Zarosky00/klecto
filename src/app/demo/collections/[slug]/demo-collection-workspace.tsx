@@ -49,6 +49,12 @@ type DemoComment = {
   createdAt: string;
 };
 type SubcollectionPatch = Pick<DemoSubcollection, "name" | "description" | "kind" | "visibility" | "coverUrl">;
+type DemoDeleteConfirmation = {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+};
 
 const MAX_DEMO_PHOTOS = 8;
 
@@ -150,6 +156,7 @@ function DemoCollectionDashboardLegacy({ collection }: { collection: DemoCollect
   const [notice, setNotice] = useState<Notice>(null);
   const [menuSubcollection, setMenuSubcollection] = useState<DemoSubcollection | null>(null);
   const [editingSubcollection, setEditingSubcollection] = useState<DemoSubcollection | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DemoDeleteConfirmation | null>(null);
   const itemCount = directItems.length + subcollections.reduce((total, entry) => total + entry.items.length, 0);
 
   const changeCover = (file: File) => {
@@ -169,6 +176,36 @@ function DemoCollectionDashboardLegacy({ collection }: { collection: DemoCollect
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") setNotice({ type: "error", text: "The demo collection could not be shared." });
     }
+  };
+  const requestCollectionDeletion = () => {
+    setDeleteConfirmation({
+      title: `Delete ${name}?`,
+      description: "This removes the collection from this demo session. Refresh the page to restore Arjun's sample shelf.",
+      confirmLabel: "Delete collection",
+      onConfirm: () => setDeleted(true),
+    });
+  };
+  const requestItemDeletion = (item: DemoItem) => {
+    setDeleteConfirmation({
+      title: `Delete ${item.title}?`,
+      description: "This removes the item from this local demo session. Refresh the page to restore the sample.",
+      confirmLabel: "Delete item",
+      onConfirm: () => {
+        setDirectItems((current) => current.filter((candidate) => candidate.id !== item.id));
+        setNotice({ type: "success", text: "Item removed locally in the demo." });
+      },
+    });
+  };
+  const requestSubcollectionDeletion = (target: DemoSubcollection) => {
+    setDeleteConfirmation({
+      title: `Delete ${target.name}?`,
+      description: "This removes the subcollection from the local demo. Refresh the page to restore the sample.",
+      confirmLabel: "Delete subcollection",
+      onConfirm: () => {
+        setSubcollections((current) => current.filter((entry) => entry.id !== target.id));
+        setNotice({ type: "success", text: "Subcollection removed locally in the demo." });
+      },
+    });
   };
 
   if (deleted) {
@@ -194,12 +231,13 @@ function DemoCollectionDashboardLegacy({ collection }: { collection: DemoCollect
 
         <section className="studio-route-section"><div className="studio-section-head workspace-section-head"><div><span className="eyebrow">STEP 1 · CHOOSE A SUBCOLLECTION</span><h2>Subcollections</h2><p>Open one to see its cover, swipeable media, reactions, and owner controls.</p></div><button className="secondary-button" onClick={() => setShowSettings((current) => !current)}><Pencil size={16} /> {showSettings ? "Close settings" : "Manage collection"}</button></div><div className="subcollection-route-grid">{subcollections.map((entry, index) => <DemoSubcollectionCard key={entry.id} collection={collection} subcollection={entry} index={index} visibility={visibility} onOpenMenu={() => setMenuSubcollection(entry)} />)}</div></section>
 
-        {showSettings ? <section className="settings-card studio-settings studio-details-card"><div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>These controls are interactive so you can preview the live owner workspace.</p></div></div><div className="settings-form-grid"><label><span>Name</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} /></label></div><div className="studio-actions"><button className="danger-button" onClick={() => { if (window.confirm(`Delete “${name}” from this demo?`)) setDeleted(true); }}><Trash2 size={16} /> Delete collection</button><button className="primary-button" onClick={() => setNotice({ type: "success", text: "Demo collection settings saved locally." })}><Save size={16} /> Save settings</button></div></section> : null}
+        {showSettings ? <section className="settings-card studio-settings studio-details-card"><div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>These controls are interactive so you can preview the live owner workspace.</p></div></div><div className="settings-form-grid"><label><span>Name</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} /></label></div><div className="studio-actions"><button className="danger-button" onClick={requestCollectionDeletion}><Trash2 size={16} /> Delete collection</button><button className="primary-button" onClick={() => setNotice({ type: "success", text: "Demo collection settings saved locally." })}><Save size={16} /> Save settings</button></div></section> : null}
 
-        <section className="studio-items-section studio-direct-items"><div className="studio-section-head"><div><span className="eyebrow">STEP 2 · ITEMS WITHOUT A SUBCOLLECTION</span><h2>Unsorted items</h2></div><button className="secondary-button" onClick={() => setNotice({ type: "success", text: "Use a signed-in account to add permanent items." })}><Plus size={15} /> Add item</button></div><DemoCompactItemGrid items={directItems} onDelete={(item) => { if (window.confirm(`Delete “${item.title}” from this demo?`)) { setDirectItems((current) => current.filter((candidate) => candidate.id !== item.id)); setNotice({ type: "success", text: "Item removed locally in the demo." }); } }} emptyTitle="Everything is neatly grouped." emptyBody="Open a subcollection to browse its items." /></section>
+        <section className="studio-items-section studio-direct-items"><div className="studio-section-head"><div><span className="eyebrow">STEP 2 · ITEMS WITHOUT A SUBCOLLECTION</span><h2>Unsorted items</h2></div><button className="secondary-button" onClick={() => setNotice({ type: "success", text: "Use a signed-in account to add permanent items." })}><Plus size={15} /> Add item</button></div><DemoCompactItemGrid items={directItems} onDelete={requestItemDeletion} emptyTitle="Everything is neatly grouped." emptyBody="Open a subcollection to browse its items." /></section>
         <AnimatePresence>
-          {menuSubcollection ? <DemoActionSheet title={menuSubcollection.name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setMenuSubcollection(null)} onEdit={() => { setEditingSubcollection(menuSubcollection); setMenuSubcollection(null); }} onShare={() => void share()} onDelete={() => { const target = menuSubcollection; setMenuSubcollection(null); if (window.confirm(`Delete “${target.name}” from this demo?`)) { setSubcollections((current) => current.filter((entry) => entry.id !== target.id)); setNotice({ type: "success", text: "Subcollection removed locally in the demo." }); } }} /> : null}
+          {menuSubcollection ? <DemoActionSheet title={menuSubcollection.name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setMenuSubcollection(null)} onEdit={() => { setEditingSubcollection(menuSubcollection); setMenuSubcollection(null); }} onShare={() => void share()} onDelete={() => { const target = menuSubcollection; setMenuSubcollection(null); requestSubcollectionDeletion(target); }} /> : null}
           {editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={editingSubcollection} onClose={() => setEditingSubcollection(null)} onSaved={(patch) => { setSubcollections((current) => current.map((entry) => entry.id === editingSubcollection.id ? { ...entry, ...patch } : entry)); setEditingSubcollection(null); setNotice({ type: "success", text: "Subcollection details and cover saved locally." }); }} /> : null}
+          {deleteConfirmation ? <DemoDeleteConfirmSheet confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}
         </AnimatePresence>
         {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
       </section>
@@ -227,6 +265,7 @@ function DemoCollectionDashboardCurated({ collection }: { collection: DemoCollec
   const [catalogVisibility, setCatalogVisibility] = useState<Visibility | "inherit" | "all">("all");
   const [catalogSort, setCatalogSort] = useState<"order" | "recent" | "name" | "items" | "liked">("order");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DemoDeleteConfirmation | null>(null);
   const itemCount = directItems.length + subcollections.reduce((total, entry) => total + entry.items.length, 0);
   const visibleSubcollections = useMemo(() => {
     const normalizedQuery = catalogQuery.trim().toLocaleLowerCase();
@@ -265,11 +304,30 @@ function DemoCollectionDashboardCurated({ collection }: { collection: DemoCollec
     setSubcollections((current) => [...current, next]);
     setEditingSubcollection(next);
   };
+  const requestCollectionDeletion = () => {
+    setDeleteConfirmation({
+      title: `Delete ${name}?`,
+      description: "This removes the collection from this demo session. Refresh the page to restore Arjun's sample shelf.",
+      confirmLabel: "Delete collection",
+      onConfirm: () => setDeleted(true),
+    });
+  };
+  const requestSubcollectionDeletion = (target: DemoSubcollection) => {
+    setDeleteConfirmation({
+      title: `Delete ${target.name}?`,
+      description: "This removes the section and its local item changes from the demo collection. Refresh to restore the sample.",
+      confirmLabel: "Delete section",
+      onConfirm: () => {
+        setSubcollections((current) => current.filter((entry) => entry.id !== target.id));
+        setNotice({ type: "success", text: "Section removed locally in the demo." });
+      },
+    });
+  };
 
   if (deleted) return <main className="collection-studio-page"><header className="settings-topbar"><Link href="/"><ArrowLeft size={17} /> Back to Klecto</Link><span className="eyebrow">DEMO COLLECTION</span><span>@{collection.owner.username}</span></header><section className="collection-studio-shell demo-deleted-state"><Layers3 size={28} /><span className="eyebrow">DEMO CHANGE</span><h1>{name} was removed.</h1><p>That action is local to the sample account. Refresh this page to restore Arjun&apos;s starting shelf.</p><div><button className="secondary-button" onClick={() => window.location.reload()}>Restore demo</button><Link className="primary-button" href="/">Back to Klecto</Link></div></section></main>;
 
   return <main className="collection-studio-page"><header className="settings-topbar"><Link href="/"><ArrowLeft size={17} /> Back to Klecto</Link><span className="eyebrow">DEMO COLLECTION</span><span>@{collection.owner.username}</span></header><section className="collection-studio-shell collection-workspace-shell collection-showcase-shell"><DemoWorkspaceNote />
-    <section className="collection-showcase collection-showcase-curated"><div className="collection-showcase-cover"><img src={coverUrl} alt={`${name} cover`} /><div className="collection-showcase-cover-shade" /><span>{itemCount} objects</span><label className="studio-cover-edit"><ImagePlus size={16} /> Change cover<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) changeCover(file); event.currentTarget.value = ""; }} /></label></div><div className="collection-showcase-copy"><span className="eyebrow">ARJUN&apos;S SHELF · {visibilityLabel(visibility)}</span><h1>{name}</h1><p>{description}</p><div className="collection-showcase-stats"><span><strong>{subcollections.length}</strong> sections</span><span><strong>{itemCount}</strong> objects</span><span><strong>{collection.updatedAt ? shortDate(collection.updatedAt) : "Now"}</strong> updated</span></div></div><div className="collection-showcase-owner"><button className="collection-owner-menu-trigger" onClick={() => setOwnerMenuOpen((current) => !current)} aria-expanded={ownerMenuOpen} aria-label="Collection options"><MoreHorizontal size={19} /></button>{ownerMenuOpen ? <div className="collection-owner-menu" role="dialog" aria-label="Collection options"><button onClick={() => { setOwnerMenuOpen(false); void share(); }}><Share2 size={16} /> Share collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowPostComposer(true); }}><Send size={16} /> Post collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowSettings(true); }}><Pencil size={16} /> Edit collection</button><span>Visibility</span><div>{(["public", "followers", "private"] as Visibility[]).map((entry) => <button className={visibility === entry ? "active" : ""} key={entry} onClick={() => { setVisibility(entry); setNotice({ type: "success", text: `Demo collection set to ${visibilityLabel(entry).toLowerCase()}.` }); }}>{visibilityIcon(entry)} {visibilityLabel(entry)}</button>)}</div><button className="danger" onClick={() => { setOwnerMenuOpen(false); if (window.confirm(`Delete "${name}" from this demo?`)) setDeleted(true); }}><Trash2 size={16} /> Delete collection</button></div> : null}</div></section>
+    <section className="collection-showcase collection-showcase-curated"><div className="collection-showcase-cover"><img src={coverUrl} alt={`${name} cover`} /><div className="collection-showcase-cover-shade" /><span>{itemCount} objects</span><label className="studio-cover-edit"><ImagePlus size={16} /> Change cover<input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) changeCover(file); event.currentTarget.value = ""; }} /></label></div><div className="collection-showcase-copy"><span className="eyebrow">ARJUN&apos;S SHELF · {visibilityLabel(visibility)}</span><h1>{name}</h1><p>{description}</p><div className="collection-showcase-stats"><span><strong>{subcollections.length}</strong> sections</span><span><strong>{itemCount}</strong> objects</span><span><strong>{collection.updatedAt ? shortDate(collection.updatedAt) : "Now"}</strong> updated</span></div></div><div className="collection-showcase-owner"><button className="collection-owner-menu-trigger" onClick={() => setOwnerMenuOpen((current) => !current)} aria-expanded={ownerMenuOpen} aria-label="Collection options"><MoreHorizontal size={19} /></button>{ownerMenuOpen ? <div className="collection-owner-menu" role="dialog" aria-label="Collection options"><button onClick={() => { setOwnerMenuOpen(false); void share(); }}><Share2 size={16} /> Share collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowPostComposer(true); }}><Send size={16} /> Post collection</button><button onClick={() => { setOwnerMenuOpen(false); setShowSettings(true); }}><Pencil size={16} /> Edit collection</button><span>Visibility</span><div>{(["public", "followers", "private"] as Visibility[]).map((entry) => <button className={visibility === entry ? "active" : ""} key={entry} onClick={() => { setVisibility(entry); setNotice({ type: "success", text: `Demo collection set to ${visibilityLabel(entry).toLowerCase()}.` }); }}>{visibilityIcon(entry)} {visibilityLabel(entry)}</button>)}</div><button className="danger" onClick={() => { setOwnerMenuOpen(false); requestCollectionDeletion(); }}><Trash2 size={16} /> Delete collection</button></div> : null}</div></section>
     {showPostComposer ? <section className="studio-post-composer collection-showcase-post"><div><span className="eyebrow">SHARE TO YOUR PROFILE</span><h2>Give the shelf a line of context.</h2><p>This sample post is local to the current browser session.</p></div><textarea value={postText} onChange={(event) => setPostText(event.target.value)} placeholder="What makes this collection worth sharing? (optional)" /><footer><button className="text-button" onClick={() => setShowPostComposer(false)}><X size={15} /> Cancel</button><button className="primary-button" onClick={() => { setPostText(""); setShowPostComposer(false); setNotice({ type: "success", text: "Demo post published to Arjun&apos;s sample profile." }); }}><Send size={16} /> Publish post</button></footer></section> : null}
     <section className="collection-catalog">
       <div className="collection-catalog-head collection-catalog-head--solo">
@@ -278,8 +336,8 @@ function DemoCollectionDashboardCurated({ collection }: { collection: DemoCollec
       </div>
       <div className="collection-catalog-toolbar"><label className="collection-catalog-search"><Search size={17} /><input value={catalogQuery} onChange={(event) => setCatalogQuery(event.target.value)} placeholder="Search sections, items, or brands" aria-label="Search this collection" />{catalogQuery ? <button type="button" onClick={() => setCatalogQuery("")} aria-label="Clear search"><X size={15} /></button> : null}</label><label className="collection-catalog-sort"><span>Sort</span><select value={catalogSort} onChange={(event) => setCatalogSort(event.target.value as typeof catalogSort)} aria-label="Sort sections"><option value="order">Collection order</option><option value="recent">Recent activity</option><option value="name">Name A-Z</option><option value="items">Most items</option><option value="liked">Most liked</option></select></label><div className="collection-catalog-filter-wrap"><button className={`collection-catalog-filter ${catalogKind !== "all" || catalogVisibility !== "all" ? "active" : ""}`} onClick={() => setFiltersOpen((current) => !current)} aria-expanded={filtersOpen}><SlidersHorizontal size={17} /> Filter</button>{filtersOpen ? <div className="collection-catalog-filter-popover" role="dialog" aria-label="Filter sections"><span>Type</span><div>{(["all", "brand", "series", "era", "custom"] as const).map((entry) => <button className={catalogKind === entry ? "active" : ""} key={entry} onClick={() => setCatalogKind(entry)}>{entry === "all" ? "Everything" : entry}</button>)}</div><span>Visibility</span><div>{(["all", "inherit", "public", "followers", "private"] as const).map((entry) => <button className={catalogVisibility === entry ? "active" : ""} key={entry} onClick={() => setCatalogVisibility(entry)}>{entry === "all" ? "Any visibility" : entry === "inherit" ? "Inherits collection" : visibilityLabel(entry)}</button>)}</div></div> : null}</div></div><div className="collection-catalog-results"><span>{visibleSubcollections.length === subcollections.length ? `${subcollections.length} section${subcollections.length === 1 ? "" : "s"}` : `${visibleSubcollections.length} of ${subcollections.length} sections`}</span>{catalogQuery || catalogKind !== "all" || catalogVisibility !== "all" ? <button onClick={() => { setCatalogQuery(""); setCatalogKind("all"); setCatalogVisibility("all"); }}>Clear filters</button> : null}</div><div className="subcollection-route-grid collection-catalog-grid">{visibleSubcollections.map((entry, index) => <DemoSubcollectionCard key={entry.id} collection={collection} subcollection={entry} index={index} visibility={visibility} onOpenMenu={() => setMenuSubcollection(entry)} />)}{visibleSubcollections.length === 0 ? <div className="studio-empty subcollection-empty"><Layers3 size={25} /><strong>No sections match that view.</strong><p>Try another search or clear the filters.</p></div> : null}</div>
     </section>
-    {showSettings ? <section className="settings-card studio-settings studio-details-card collection-showcase-settings"><div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>Changes stay in this demo until you refresh.</p></div></div><div className="settings-form-grid"><label><span>Name</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} /></label></div><div className="studio-actions"><button className="danger-button" onClick={() => { if (window.confirm(`Delete "${name}" from this demo?`)) setDeleted(true); }}><Trash2 size={16} /> Delete collection</button><button className="primary-button" onClick={() => { setShowSettings(false); setNotice({ type: "success", text: "Demo collection settings saved locally." }); }}><Save size={16} /> Save settings</button></div></section> : null}
-    <AnimatePresence>{menuSubcollection ? <DemoActionSheet title={menuSubcollection.name} subtitle="SECTION DETAILS" note={menuSubcollection.description} onClose={() => setMenuSubcollection(null)} onEdit={() => { setEditingSubcollection(menuSubcollection); setMenuSubcollection(null); }} onShare={() => void share()} onDelete={() => { const target = menuSubcollection; setMenuSubcollection(null); if (window.confirm(`Delete "${target.name}" from this demo?`)) { setSubcollections((current) => current.filter((entry) => entry.id !== target.id)); setNotice({ type: "success", text: "Section removed locally in the demo." }); } }} /> : null}{editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={editingSubcollection} onClose={() => setEditingSubcollection(null)} onSaved={(patch) => { setSubcollections((current) => current.map((entry) => entry.id === editingSubcollection.id ? { ...entry, ...patch } : entry)); setEditingSubcollection(null); setNotice({ type: "success", text: "Section details and cover saved locally." }); }} /> : null}</AnimatePresence>
+    {showSettings ? <section className="settings-card studio-settings studio-details-card collection-showcase-settings"><div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>Changes stay in this demo until you refresh.</p></div></div><div className="settings-form-grid"><label><span>Name</span><input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} /></label></div><div className="studio-actions"><button className="danger-button" onClick={requestCollectionDeletion}><Trash2 size={16} /> Delete collection</button><button className="primary-button" onClick={() => { setShowSettings(false); setNotice({ type: "success", text: "Demo collection settings saved locally." }); }}><Save size={16} /> Save settings</button></div></section> : null}
+    <AnimatePresence>{menuSubcollection ? <DemoActionSheet title={menuSubcollection.name} subtitle="SECTION DETAILS" note={menuSubcollection.description} onClose={() => setMenuSubcollection(null)} onEdit={() => { setEditingSubcollection(menuSubcollection); setMenuSubcollection(null); }} onShare={() => void share()} onDelete={() => { const target = menuSubcollection; setMenuSubcollection(null); requestSubcollectionDeletion(target); }} /> : null}{editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={editingSubcollection} onClose={() => setEditingSubcollection(null)} onSaved={(patch) => { setSubcollections((current) => current.map((entry) => entry.id === editingSubcollection.id ? { ...entry, ...patch } : entry)); setEditingSubcollection(null); setNotice({ type: "success", text: "Section details and cover saved locally." }); }} /> : null}{deleteConfirmation ? <DemoDeleteConfirmSheet confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}</AnimatePresence>
     {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
   </section></main>;
 }
@@ -327,6 +385,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
   const [addingItem, setAddingItem] = useState(false);
   const [editingSubcollection, setEditingSubcollection] = useState(false);
   const [mediaViewer, setMediaViewer] = useState<{ title: string; images: string[]; initialIndex: number } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DemoDeleteConfirmation | null>(null);
   const effectiveVisibility = visibility ?? collection.visibility;
   const hasActiveItemFilters = itemQuery || itemVisibilityFilter !== "all" || itemFavouriteFilter !== "all" || itemMoodFilter !== "all";
   const visibleItems = useMemo(() => {
@@ -412,17 +471,29 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
   };
 
   const deleteItem = (item: DemoItem) => {
-    if (!window.confirm(`Delete “${item.title}” from this demo?`)) return;
-    setItems((current) => current.filter((entry) => entry.id !== item.id));
-    setItemDetail((current) => current?.id === item.id ? null : current);
-    setItemMenu(null);
-    setNotice({ type: "success", text: "Item removed locally in the demo." });
+    setDeleteConfirmation({
+      title: `Delete ${item.title}?`,
+      description: "This removes the item and its locally added photos from this demo session. Refresh the page to restore the sample.",
+      confirmLabel: "Delete item",
+      onConfirm: () => {
+        setItems((current) => current.filter((entry) => entry.id !== item.id));
+        setItemDetail((current) => current?.id === item.id ? null : current);
+        setItemMenu(null);
+        setNotice({ type: "success", text: "Item removed locally in the demo." });
+      },
+    });
   };
 
   const deleteSubcollection = () => {
-    if (!window.confirm(`Delete “${name}” from this demo?`)) return;
-    setDeleted(true);
-    setSubcollectionMenuOpen(false);
+    setDeleteConfirmation({
+      title: `Delete ${name}?`,
+      description: "This removes this subcollection from the demo workspace. Refresh the page to restore Arjun's original collection.",
+      confirmLabel: "Delete subcollection",
+      onConfirm: () => {
+        setDeleted(true);
+        setSubcollectionMenuOpen(false);
+      },
+    });
   };
 
   const saveItem = (next: DemoItem) => {
@@ -433,6 +504,12 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
     setItemDetail(null);
     setAddingItem(false);
     setNotice({ type: "success", text: exists ? "Item and photos saved locally." : "New item with photos added locally." });
+  };
+
+  const saveItemFromDetail = (next: DemoItem) => {
+    setItems((current) => current.map((item) => item.id === next.id ? next : item));
+    setItemDetail(next);
+    setNotice({ type: "success", text: "Item details and photos saved locally." });
   };
 
   const saveSubcollection = (patch: SubcollectionPatch) => {
@@ -487,7 +564,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
       </section>
 
       <AnimatePresence>
-        {itemDetail ? <DemoCatalogItemDetailSheet item={itemDetail} subcollectionName={name} visibility={effectiveVisibility} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail.id)} onComment={() => openComments({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onEdit={() => { setItemDetail(null); setEditingItem(itemDetail); }} onDelete={() => deleteItem(itemDetail)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: itemDetail.title, images, initialIndex })} /> : null}
+        {itemDetail ? <DemoCatalogItemDetailSheet item={itemDetail} subcollectionName={name} visibility={effectiveVisibility} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail.id)} onComment={() => openComments({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onSaveItem={saveItemFromDetail} onDelete={() => deleteItem(itemDetail)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: itemDetail.title, images, initialIndex })} /> : null}
         {commentTarget ? <DemoCommentSheet target={commentTarget} comments={comments} ownerName={collection.owner.name} aboveItemDetail={Boolean(itemDetail)} onClose={() => setCommentTarget(null)} onSubmit={addComment} /> : null}
         {itemMenu ? <DemoActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => deleteItem(itemMenu)} /> : null}
         {subcollectionMenuOpen ? <DemoActionSheet title={name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={() => void share()} onDelete={deleteSubcollection} /> : null}
@@ -495,6 +572,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
         {addingItem ? <DemoItemEditorSheet subcollectionName={name} onClose={() => setAddingItem(false)} onSaved={saveItem} /> : null}
         {editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={{ ...subcollection, name, description, kind, visibility, coverUrl }} onClose={() => setEditingSubcollection(false)} onSaved={saveSubcollection} /> : null}
         {mediaViewer ? <DemoMediaViewer title={mediaViewer.title} images={mediaViewer.images} initialIndex={mediaViewer.initialIndex} onClose={() => setMediaViewer(null)} /> : null}
+        {deleteConfirmation ? <DemoDeleteConfirmSheet confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}
       </AnimatePresence>
       {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
     </main>
@@ -512,9 +590,47 @@ function DemoItemMediaCarousel({ item, onOpenMedia }: { item: DemoItem; onOpenMe
   return <div className="item-media-carousel demo-item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.length ? images.map((image, index) => <button className="item-media-slide" key={`${image}-${index}`} onClick={(event) => { event.stopPropagation(); onOpenMedia(images, index); }} aria-label={`Open photo ${index + 1} of ${item.title}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}<button className="item-media-zoom" onClick={(event) => { event.stopPropagation(); onOpenMedia(images, activeIndex); }} aria-label={`View ${item.title} fullscreen`}><ZoomIn size={15} /></button>{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
 }
 
-function DemoCatalogItemDetailSheet({ item, subcollectionName, visibility, reaction, onClose, onToggleLike, onComment, onShare, onEdit, onDelete, onOpenMedia }: { item: DemoItem; subcollectionName: string; visibility: Visibility; reaction: ReactionState; onClose: () => void; onToggleLike: () => void; onComment: () => void; onShare: () => void; onEdit: () => void; onDelete: () => void; onOpenMedia: (images: string[], initialIndex: number) => void }) {
+function DemoCatalogItemDetailSheet({
+  item,
+  subcollectionName,
+  visibility,
+  reaction,
+  onClose,
+  onToggleLike,
+  onComment,
+  onShare,
+  onSaveItem,
+  onDelete,
+  onOpenMedia,
+}: {
+  item: DemoItem;
+  subcollectionName: string;
+  visibility: Visibility;
+  reaction: ReactionState;
+  onClose: () => void;
+  onToggleLike: () => void;
+  onComment: () => void;
+  onShare: () => void;
+  onSaveItem: (item: DemoItem) => void;
+  onDelete: () => void;
+  onOpenMedia: (images: string[], initialIndex: number) => void;
+}) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const images = item.images;
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description);
+  const [brand, setBrand] = useState(item.brand ?? "");
+  const [details, setDetails] = useState(item.details);
+  const [mood, setMood] = useState<DemoItem["mood"]>(item.mood);
+  const [itemVisibility, setItemVisibility] = useState<Visibility>(item.visibility ?? visibility);
+  const [isFavorite, setIsFavorite] = useState(item.isFavorite);
+  const [photos, setPhotos] = useState(item.images);
+  const [editError, setEditError] = useState("");
+
+  const images = isEditing ? photos : item.images;
+  const safeActiveIndex = Math.min(activeIndex, Math.max(images.length - 1, 0));
+  const displayedTitle = isEditing ? title.trim() || "Untitled object" : item.title;
+  const displayedFavorite = isEditing ? isFavorite : item.isFavorite;
   const metadata = [
     { label: "Brand", value: item.brand },
     { label: "Details", value: item.details },
@@ -524,8 +640,195 @@ function DemoCatalogItemDetailSheet({ item, subcollectionName, visibility, react
     { label: "Photos", value: `${images.length} ${images.length === 1 ? "photo" : "photos"}` },
   ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
 
-  return <motion.div className="catalog-item-detail-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-item-detail-sheet" role="dialog" aria-modal="true" aria-label={`${item.title} details`} initial={{ opacity: 0, y: 28, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.985 }} transition={{ type: "spring", damping: 28, stiffness: 310 }} onClick={(event) => event.stopPropagation()}><header className="catalog-item-detail-header"><div><span className="catalog-item-detail-context"><Layers3 size={14} /> {subcollectionName}</span><h2>{item.title}</h2></div><button type="button" onClick={onClose} aria-label="Close item details"><X size={20} /></button></header><div className="catalog-item-detail-gallery">{images.length ? <div className="catalog-item-detail-gallery-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.map((image, index) => <button className="catalog-item-detail-gallery-slide" type="button" key={`${image}-${index}`} onClick={() => onOpenMedia(images, index)} aria-label={`Open photo ${index + 1} fullscreen`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>)}</div> : <div className="catalog-item-detail-gallery-empty"><Layers3 size={30} /><span>No photos added yet</span></div>}{images.length > 1 ? <div className="catalog-item-detail-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={index === activeIndex ? "active" : ""} key={`${image}-indicator`} />)}</div></div> : null}{item.isFavorite ? <span className="catalog-item-detail-favorite"><Star size={15} fill="currentColor" /> Favourite</span> : null}</div><div className="catalog-item-detail-copy"><p className="catalog-item-detail-description">{item.description || "No description has been added to this object yet."}</p><dl className="catalog-item-detail-meta">{metadata.map((entry) => <div key={entry.label}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}</dl></div><footer className="catalog-item-detail-actions"><div><button className={reaction.liked ? "liked" : ""} type="button" onClick={onToggleLike}><Heart size={17} fill={reaction.liked ? "currentColor" : "none"} /> <span>{reaction.likes}</span></button><button type="button" onClick={onComment}><MessageCircle size={17} /> <span>{reaction.comments}</span></button><button type="button" onClick={onShare}><Share2 size={17} /><span>Share</span></button></div><div className="catalog-item-detail-owner-actions"><button type="button" onClick={onEdit}><Pencil size={17} /><span>Edit</span></button><button className="danger" type="button" onClick={onDelete}><Trash2 size={17} /><span>Delete</span></button></div></footer></motion.section></motion.div>;
+  const resetEditor = () => {
+    setTitle(item.title);
+    setDescription(item.description);
+    setBrand(item.brand ?? "");
+    setDetails(item.details);
+    setMood(item.mood);
+    setItemVisibility(item.visibility ?? visibility);
+    setIsFavorite(item.isFavorite);
+    setPhotos(item.images);
+    setActiveIndex(0);
+    setEditError("");
+    setIsEditing(false);
+  };
+
+  const startEditor = () => {
+    setTitle(item.title);
+    setDescription(item.description);
+    setBrand(item.brand ?? "");
+    setDetails(item.details);
+    setMood(item.mood);
+    setItemVisibility(item.visibility ?? visibility);
+    setIsFavorite(item.isFavorite);
+    setPhotos(item.images);
+    setActiveIndex(0);
+    setEditError("");
+    setIsEditing(true);
+  };
+
+  const selectPhotos = (files: FileList | null, replace = false) => {
+    if (!files?.length) return;
+    const selection = Array.from(files);
+    const invalid = selection.find((file) => !file.type.startsWith("image/") || file.size > 15 * 1024 * 1024);
+    if (invalid) {
+      setEditError("Use image files under 15 MB.");
+      return;
+    }
+    if ((!replace && photos.length + selection.length > MAX_DEMO_PHOTOS) || (replace && selection.length > MAX_DEMO_PHOTOS)) {
+      setEditError(`An item can have up to ${MAX_DEMO_PHOTOS} photos.`);
+      return;
+    }
+    setPhotos(replace ? selection.map((file) => URL.createObjectURL(file)) : (current) => [...current, ...selection.map((file) => URL.createObjectURL(file))]);
+    setActiveIndex(0);
+    setEditError("");
+  };
+
+  const save = () => {
+    if (!title.trim()) {
+      setEditError("Give this item a title.");
+      return;
+    }
+    onSaveItem({
+      ...item,
+      title: title.trim(),
+      description: description.trim(),
+      brand: brand.trim() || null,
+      details: details.trim(),
+      mood,
+      visibility: itemVisibility,
+      isFavorite,
+      images: photos,
+    });
+    setEditError("");
+    setIsEditing(false);
+  };
+
+  return (
+    <motion.div className="catalog-item-detail-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.section
+        className={`catalog-item-detail-sheet${isEditing ? " catalog-item-detail-sheet--editing" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${displayedTitle} details`}
+        initial={{ opacity: 0, y: 28, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 18, scale: 0.985 }}
+        transition={{ type: "spring", damping: 28, stiffness: 310 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="catalog-item-detail-header">
+          <div>
+            <span className="catalog-item-detail-context"><Layers3 size={14} /> {subcollectionName}</span>
+            <h2>{displayedTitle}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close item details"><X size={20} /></button>
+        </header>
+
+        <div className="catalog-item-detail-gallery">
+          {images.length ? (
+            <div
+              className="catalog-item-detail-gallery-scroll"
+              onScroll={(event) => {
+                const width = event.currentTarget.clientWidth;
+                if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width))));
+              }}
+            >
+              {images.map((image, index) => (
+                <button className="catalog-item-detail-gallery-slide" type="button" key={`${image}-${index}`} onClick={() => onOpenMedia(images, index)} aria-label={`Open photo ${index + 1} fullscreen`}>
+                  <img src={image} alt={`${displayedTitle}, photo ${index + 1}`} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="catalog-item-detail-gallery-empty"><Layers3 size={30} /><span>No photos added yet</span></div>
+          )}
+          {images.length > 1 ? (
+            <div className="catalog-item-detail-indicator">
+              <span>{safeActiveIndex + 1}/{images.length}</span>
+              <div>{images.map((image, index) => <i className={index === safeActiveIndex ? "active" : ""} key={`${image}-indicator`} />)}</div>
+            </div>
+          ) : null}
+          {displayedFavorite ? <span className="catalog-item-detail-favorite"><Star size={15} fill="currentColor" /> Favourite</span> : null}
+        </div>
+
+        {isEditing ? (
+          <form
+            className="catalog-item-inline-editor demo-catalog-item-inline-editor"
+            id="catalog-item-detail-editor"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save();
+            }}
+          >
+            <div className="catalog-item-inline-heading">
+              <span className="eyebrow">EDIT THIS ITEM</span>
+              <p>Make changes without leaving this item. Everything remains local to the demo.</p>
+            </div>
+            <div className="catalog-item-inline-grid">
+              <label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} autoFocus /></label>
+              <label><span>Brand</span><input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={100} /></label>
+              <label><span>Details</span><input value={details} onChange={(event) => setDetails(event.target.value)} maxLength={160} placeholder="Year · condition · memory" /></label>
+              <label><span>Mood</span><select value={mood} onChange={(event) => setMood(event.target.value as DemoItem["mood"])}><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favourite</option><option value="regret">Regret</option><option value="neutral">Neutral</option></select></label>
+              <label><span>Visibility</span><select value={itemVisibility} onChange={(event) => setItemVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label>
+              <label className="catalog-item-inline-description"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={4000} placeholder="What makes this object worth keeping?" /></label>
+            </div>
+            <label className="catalog-item-inline-favourite"><input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={16} fill={isFavorite ? "currentColor" : "none"} /> Favourite item</label>
+            <section className="catalog-item-inline-media" aria-label="Item photos">
+              <div className="catalog-item-inline-media-copy"><span>Photos</span><p>Swipeable gallery · up to {MAX_DEMO_PHOTOS} images</p></div>
+              <div className="catalog-item-inline-media-actions">
+                <label className="catalog-item-inline-upload"><ImagePlus size={16} /> Add photos<input type="file" accept="image/*" multiple onChange={(event) => { selectPhotos(event.target.files); event.currentTarget.value = ""; }} /></label>
+                <label className="catalog-item-inline-upload is-replace"><Camera size={16} /> Replace gallery<input type="file" accept="image/*" multiple onChange={(event) => { selectPhotos(event.target.files, true); event.currentTarget.value = ""; }} /></label>
+              </div>
+              {photos.length ? (
+                <div className="catalog-item-inline-previews">
+                  {photos.map((photo, index) => (
+                    <figure key={`${photo}-${index}`}>
+                      <img src={photo} alt={`Photo ${index + 1} preview`} />
+                      <button type="button" onClick={() => { setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index)); setActiveIndex(0); }} aria-label={`Remove photo ${index + 1}`}><X size={14} /></button>
+                    </figure>
+                  ))}
+                </div>
+              ) : <div className="catalog-item-inline-empty"><ImagePlus size={18} /><span>Add the first photo for this item.</span></div>}
+            </section>
+            {editError ? <p className="catalog-item-inline-error" role="alert">{editError}</p> : null}
+          </form>
+        ) : (
+          <div className="catalog-item-detail-copy">
+            <div className="catalog-item-detail-story">
+              <span className="eyebrow">THE STORY</span>
+              <p className="catalog-item-detail-description">{item.description || "No description has been added to this object yet."}</p>
+            </div>
+            <dl className="catalog-item-detail-meta">{metadata.map((entry) => <div key={entry.label}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}</dl>
+          </div>
+        )}
+
+        <footer className={`catalog-item-detail-actions${isEditing ? " catalog-item-detail-actions--editing" : ""}`}>
+          {isEditing ? (
+            <div className="catalog-item-inline-actions">
+              <button type="button" className="text-button" onClick={resetEditor}><X size={16} /> Cancel</button>
+              <button type="submit" form="catalog-item-detail-editor" className="primary-button"><Save size={16} /> Save changes</button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <button className={reaction.liked ? "liked" : ""} type="button" onClick={onToggleLike}><Heart size={17} fill={reaction.liked ? "currentColor" : "none"} /> <span>{reaction.likes}</span></button>
+                <button type="button" onClick={onComment}><MessageCircle size={17} /> <span>{reaction.comments}</span></button>
+                <button type="button" onClick={onShare}><Share2 size={17} /><span>Share</span></button>
+              </div>
+              <div className="catalog-item-detail-owner-actions">
+                <button type="button" onClick={startEditor}><Pencil size={17} /><span>Edit</span></button>
+                <button className="danger" type="button" onClick={onDelete}><Trash2 size={17} /><span>Delete</span></button>
+              </div>
+            </>
+          )}
+        </footer>
+      </motion.section>
+    </motion.div>
+  );
 }
+
 
 function DemoCompactItemGrid({ items, onDelete, emptyTitle, emptyBody }: { items: DemoItem[]; onDelete: (item: DemoItem) => void; emptyTitle: string; emptyBody: string }) {
   return <div className="studio-item-grid">{items.map((item) => <article key={item.id}><div className="studio-item-image">{item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Layers3 />}{item.isFavorite ? <i><Star size={13} fill="currentColor" /></i> : null}{item.visibility === "private" ? <span><LockKeyhole size={13} /></span> : null}</div><div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.details || item.description}</p><div className="catalog-reactions"><span><Heart size={14} fill={item.likedByViewer ? "currentColor" : "none"} /> {item.likeCount}</span><span><MessageCircle size={14} /> {item.commentCount}</span></div><button onClick={() => onDelete(item)}><Trash2 size={14} /> Delete</button></div></article>)}{items.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>{emptyTitle}</strong><p>{emptyBody}</p></div> : null}</div>;
@@ -533,6 +836,22 @@ function DemoCompactItemGrid({ items, onDelete, emptyTitle, emptyBody }: { items
 
 function DemoActionSheet({ title, subtitle, note, onClose, onEdit, onShare, onDelete }: { title: string; subtitle: string; note?: string; onClose: () => void; onEdit: () => void; onShare: () => void; onDelete: () => void }) {
   return <motion.div className="catalog-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-action-sheet" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }} transition={{ type: "spring", damping: 27, stiffness: 320 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">{subtitle}</span><h2>{title}</h2>{note ? <p className="collection-action-summary">{note}</p> : null}<button onClick={onEdit}><Pencil size={18} /> Edit</button><button onClick={onShare}><Share2 size={18} /> Share</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete</button><button className="cancel" onClick={onClose}>Cancel</button></motion.section></motion.div>;
+}
+
+function DemoDeleteConfirmSheet({ confirmation, onClose }: { confirmation: DemoDeleteConfirmation; onClose: () => void }) {
+  return (
+    <motion.div className="catalog-delete-backdrop demo-delete-confirm-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.section className="catalog-delete-sheet demo-delete-confirm-sheet" role="alertdialog" aria-modal="true" aria-labelledby="demo-delete-confirm-title" initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", damping: 27, stiffness: 320 }} onClick={(event) => event.stopPropagation()}>
+        <span className="eyebrow">REMOVE FROM DEMO</span>
+        <h2 id="demo-delete-confirm-title">{confirmation.title}</h2>
+        <p>{confirmation.description}</p>
+        <div className="catalog-delete-actions demo-delete-confirm-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Keep it</button>
+          <button type="button" className="danger-button" onClick={() => { onClose(); confirmation.onConfirm(); }}><Trash2 size={16} /> {confirmation.confirmLabel ?? "Delete"}</button>
+        </div>
+      </motion.section>
+    </motion.div>
+  );
 }
 
 function DemoCommentSheet({ target, comments, ownerName, aboveItemDetail = false, onClose, onSubmit }: { target: CommentTarget; comments: DemoComment[]; ownerName: string; aboveItemDetail?: boolean; onClose: () => void; onSubmit: (target: CommentTarget, body: string) => void }) {

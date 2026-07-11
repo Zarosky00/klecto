@@ -51,6 +51,7 @@ type Notice = { type: "error" | "success"; text: string } | null;
 type ReactionState = { liked: boolean; likes: number; comments: number };
 type CommentTarget = { type: "item" | "subcollection"; id: string; title: string };
 type ItemMenuTarget = ItemDTO | null;
+type DeleteRequest = { type: "item"; item: ItemDTO } | { type: "subcollection" };
 
 const acceptedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/heic"]);
 
@@ -100,6 +101,7 @@ export function SubcollectionWorkspace({
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
   const [itemDetail, setItemDetail] = useState<ItemDTO | null>(null);
   const [itemMenu, setItemMenu] = useState<ItemMenuTarget>(null);
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
   const [subcollectionMenuOpen, setSubcollectionMenuOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemDTO | null>(null);
   const [editingSubcollection, setEditingSubcollection] = useState(false);
@@ -202,7 +204,6 @@ export function SubcollectionWorkspace({
   };
 
   const deleteItem = (item: ItemDTO) => {
-    if (!window.confirm(`Delete "${item.title}"?`)) return;
     startTransition(async () => {
       const result = await deleteItemAction(item.id);
       if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Item could not be deleted." });
@@ -212,12 +213,25 @@ export function SubcollectionWorkspace({
   };
 
   const deleteSubcollection = () => {
-    if (!window.confirm(`Delete "${subcollection.name}"? Its items will stay in ${collection.name}.`)) return;
     startTransition(async () => {
       const result = await deleteSubcollectionAction(subcollection.id);
       if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Subcollection could not be deleted." });
       router.push(`/collections/${collection.id}`);
     });
+  };
+
+  const confirmDelete = () => {
+    const request = deleteRequest;
+    if (!request) return;
+    setDeleteRequest(null);
+    if (request.type === "item") {
+      setItemDetail((current) => current?.id === request.item.id ? null : current);
+      setItemMenu(null);
+      deleteItem(request.item);
+      return;
+    }
+    setSubcollectionMenuOpen(false);
+    deleteSubcollection();
   };
 
   const shareSubcollection = async () => {
@@ -293,12 +307,13 @@ export function SubcollectionWorkspace({
       </section>
 
       <AnimatePresence>
-        {itemDetail ? <CatalogItemDetailSheet item={itemDetail} collection={collection} subcollection={subcollection} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} pending={pending} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail)} onComment={() => setCommentTarget({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onEdit={() => { setItemDetail(null); setEditingItem(itemDetail); }} onDelete={() => { const item = itemDetail; setItemDetail(null); deleteItem(item); }} /> : null}
+        {itemDetail ? <CatalogItemDetailSheetInteractive item={itemDetail} collection={collection} subcollection={subcollection} viewer={viewer} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} pending={pending} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail)} onComment={() => setCommentTarget({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onItemUpdated={(updated) => { setItemDetail(updated); setNotice({ type: "success", text: "Item details saved." }); router.refresh(); }} onDelete={() => setDeleteRequest({ type: "item", item: itemDetail })} /> : null}
         {commentTarget ? <CatalogCommentSheet target={commentTarget} viewer={viewer} comments={comments} pending={pending} onClose={() => setCommentTarget(null)} onSubmit={submitComment} /> : null}
-        {itemMenu ? <CatalogActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => { const item = itemMenu; setItemMenu(null); deleteItem(item); }} /> : null}
-        {subcollectionMenuOpen ? <CatalogActionSheet title={subcollection.name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={shareSubcollection} onDelete={() => { setSubcollectionMenuOpen(false); deleteSubcollection(); }} /> : null}
+        {itemMenu ? <CatalogActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => { setDeleteRequest({ type: "item", item: itemMenu }); setItemMenu(null); }} /> : null}
+        {subcollectionMenuOpen ? <CatalogActionSheet title={subcollection.name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={shareSubcollection} onDelete={() => setDeleteRequest({ type: "subcollection" })} /> : null}
         {editingItem ? <ItemEditorSheet item={editingItem} collection={collection} subcollection={subcollection} viewer={viewer} onClose={() => setEditingItem(null)} onSaved={(text) => { setEditingItem(null); setNotice({ type: "success", text }); window.setTimeout(() => window.location.reload(), 350); }} /> : null}
         {editingSubcollection ? <SubcollectionEditorSheet subcollection={subcollection} collection={collection} viewer={viewer} onClose={() => setEditingSubcollection(false)} onSaved={(text) => { setEditingSubcollection(false); setNotice({ type: "success", text }); window.setTimeout(() => window.location.reload(), 350); }} /> : null}
+        {deleteRequest ? <CatalogDeleteConfirmSheet title={deleteRequest.type === "item" ? `Delete “${deleteRequest.item.title}”?` : `Delete “${subcollection.name}”?`} body={deleteRequest.type === "item" ? "This item and its visible details will be removed from this collection." : `This section will be removed from ${collection.name}. Its items will stay in the collection.`} pending={pending} onCancel={() => setDeleteRequest(null)} onConfirm={confirmDelete} /> : null}
       </AnimatePresence>
       {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
     </main>
@@ -465,6 +480,84 @@ function ItemEditorSheet({ item, collection, subcollection, viewer, onClose, onS
   };
 
   return <motion.div className="catalog-editor-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-editor-sheet" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">EDIT ITEM</span><h2>{item.title}</h2></div><button onClick={onClose} aria-label="Close item editor"><X size={20} /></button></header><div className="catalog-editor-grid"><label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} /></label><label><span>Brand</span><input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={100} /></label><label><span>Model</span><input value={model} onChange={(event) => setModel(event.target.value)} maxLength={120} /></label><label><span>Condition</span><input value={condition} onChange={(event) => setCondition(event.target.value)} maxLength={80} /></label><label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={4000} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="catalog-check"><input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={15} /> Favourite item</label></div><label className="catalog-photo-upload"><ImagePlus size={20} /><span><strong>{files.length ? `${files.length} new photo${files.length === 1 ? "" : "s"}` : "Add more photos"}</strong><small>Swipeable gallery · up to 8 total · JPG, PNG, WEBP, AVIF or HEIC</small></span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>{error ? <div className="create-error">{error}</div> : null}<footer><button className="text-button" onClick={onClose}>Cancel</button><button className="primary-button" disabled={pending} onClick={save}><Save size={16} /> {pending ? "Saving…" : "Save item"}</button></footer></motion.section></motion.div>;
+}
+
+function CatalogItemDetailSheetInteractive({ item, collection, subcollection, viewer, reaction, pending, onClose, onToggleLike, onComment, onShare, onItemUpdated, onDelete }: { item: ItemDTO; collection: CollectionDTO; subcollection: SubcollectionDTO; viewer: ViewerDTO; reaction: ReactionState; pending: boolean; onClose: () => void; onToggleLike: () => void; onComment: () => void; onShare: () => void; onItemUpdated: (item: ItemDTO) => void; onDelete: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [currentItem, setCurrentItem] = useState(item);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const images = currentItem.imageUrls.length ? currentItem.imageUrls : currentItem.imageUrl ? [currentItem.imageUrl] : [];
+
+  if (!editing) return <CatalogItemDetailSheet item={currentItem} collection={collection} subcollection={subcollection} reaction={reaction} pending={pending} onClose={onClose} onToggleLike={onToggleLike} onComment={onComment} onShare={onShare} onEdit={() => setEditing(true)} onDelete={onDelete} />;
+
+  return <motion.div className="catalog-item-detail-backdrop catalog-item-detail-backdrop--editing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-item-detail-sheet catalog-item-detail-sheet--editing" role="dialog" aria-modal="true" aria-label={`Edit ${currentItem.title}`} initial={{ opacity: 0, y: 28, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.985 }} transition={{ type: "spring", damping: 28, stiffness: 310 }} onClick={(event) => event.stopPropagation()}><header className="catalog-item-detail-header"><div><span className="catalog-item-detail-context"><Pencil size={14} /> Editing · {subcollection.name}</span><h2>{currentItem.title}</h2></div><button type="button" onClick={onClose} aria-label="Close item details"><X size={20} /></button></header><div className="catalog-item-detail-gallery">{images.length ? <div className="catalog-item-detail-gallery-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.map((image, index) => <div className="catalog-item-detail-gallery-slide" key={`${image}-${index}`}><img src={image} alt={`${currentItem.title}, photo ${index + 1}`} /></div>)}</div> : <div className="catalog-item-detail-gallery-empty"><Layers3 size={30} /><span>Add a photo below</span></div>}{images.length > 1 ? <div className="catalog-item-detail-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={index === activeIndex ? "active" : ""} key={`${image}-indicator`} />)}</div></div> : null}</div><CatalogItemInlineEditor item={currentItem} collection={collection} subcollection={subcollection} viewer={viewer} onCancel={() => setEditing(false)} onSaved={(patch, newImageUrls) => { const nextImages = newImageUrls.length ? [...newImageUrls, ...images] : images; const nextItem: ItemDTO = { ...currentItem, ...patch, imageUrl: nextImages[0] ?? null, imageUrls: nextImages, imageCount: nextImages.length }; setCurrentItem(nextItem); onItemUpdated(nextItem); setEditing(false); }} /></motion.section></motion.div>;
+}
+
+function CatalogItemInlineEditor({ item, collection, subcollection, viewer, onCancel, onSaved }: { item: ItemDTO; collection: CollectionDTO; subcollection: SubcollectionDTO; viewer: ViewerDTO; onCancel: () => void; onSaved: (patch: Pick<ItemDTO, "title" | "description" | "brand" | "model" | "year" | "condition" | "mood" | "isFavorite" | "visibility">, newImageUrls: string[]) => void }) {
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description ?? "");
+  const [brand, setBrand] = useState(item.brand ?? "");
+  const [model, setModel] = useState(item.model ?? "");
+  const [year, setYear] = useState(item.year ? String(item.year) : "");
+  const [condition, setCondition] = useState(item.condition ?? "");
+  const [mood, setMood] = useState<ItemDTO["mood"]>(item.mood);
+  const [visibility, setVisibility] = useState<Visibility>(item.visibility ?? collection.visibility);
+  const [isFavorite, setIsFavorite] = useState(item.isFavorite);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [saving, startSaving] = useTransition();
+  const existingImages = item.imageUrls.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [];
+
+  const addPhotos = (nextFiles: FileList | null) => {
+    const next = Array.from(nextFiles ?? []);
+    if (!next.length) return;
+    if (existingImages.length + files.length + next.length > 8) return setError("Keep this item to eight photos or fewer.");
+    const invalid = next.find((file) => !acceptedImageTypes.has(file.type) || file.size > 15 * 1024 * 1024);
+    if (invalid) return setError("Choose JPG, PNG, WEBP, AVIF, or HEIC images under 15 MB.");
+    setError("");
+    setFiles((current) => [...current, ...next]);
+    setPreviewUrls((current) => [...current, ...next.map((file) => URL.createObjectURL(file))]);
+  };
+
+  const save = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) return setError("Give this item a title.");
+    const parsedYear = year.trim() ? Number(year) : null;
+    if (parsedYear !== null && (!Number.isInteger(parsedYear) || parsedYear < 1000 || parsedYear > 3000)) return setError("Enter a valid year.");
+    setError("");
+    startSaving(async () => {
+      const patch = { title: normalizedTitle, description: description.trim() || null, brand: brand.trim() || null, model: model.trim() || null, year: parsedYear, condition: condition.trim() || null, mood, isFavorite, visibility };
+      const updated = await updateItemAction({ id: item.id, collectionId: collection.id, subcollectionId: subcollection.id, ...patch, mediaPaths: [] });
+      if (!updated.ok) return setError(updated.error ?? "Could not save this item.");
+      const uploadedPaths: string[] = [];
+      for (const file of files) {
+        const extension = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const path = `${viewer.id}/items/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await createClient().storage.from("collection-media").upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
+        if (uploadError) {
+          if (uploadedPaths.length) await createClient().storage.from("collection-media").remove(uploadedPaths);
+          return setError(`Upload failed for ${file.name}.`);
+        }
+        uploadedPaths.push(path);
+      }
+      if (uploadedPaths.length) {
+        const attached = await appendItemMediaAction({ itemId: item.id, collectionId: collection.id, subcollectionId: subcollection.id, mediaPaths: uploadedPaths });
+        if (!attached.ok) {
+          await createClient().storage.from("collection-media").remove(uploadedPaths);
+          return setError(attached.error ?? "The new photos could not be attached.");
+        }
+      }
+      onSaved(patch, previewUrls);
+    });
+  };
+
+  return <form className="catalog-item-inline-editor" onSubmit={save}><div className="catalog-item-inline-intro"><span className="eyebrow">EDIT IN PLACE</span><p>Update the details without leaving this item.</p></div><div className="catalog-item-inline-grid"><label className="wide"><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} /></label><label><span>Brand</span><input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={100} /></label><label><span>Model</span><input value={model} onChange={(event) => setModel(event.target.value)} maxLength={120} /></label><label><span>Year</span><input inputMode="numeric" value={year} onChange={(event) => setYear(event.target.value.replace(/[^0-9]/g, ""))} maxLength={4} /></label><label><span>Condition</span><input value={condition} onChange={(event) => setCondition(event.target.value)} maxLength={80} /></label><label><span>Mood</span><select value={mood} onChange={(event) => setMood(event.target.value as ItemDTO["mood"])}><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favourite</option><option value="regret">Regret</option><option value="neutral">Neutral</option></select></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={4000} /></label><label className="catalog-item-inline-favourite"><input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={15} /> Favourite item</label></div><label className="catalog-item-inline-upload"><ImagePlus size={20} /><span><strong>{files.length ? `${files.length} photo${files.length === 1 ? "" : "s"} ready to add` : "Add photos"}</strong><small>{existingImages.length + files.length}/8 photos · swipeable gallery</small></span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" multiple onChange={(event) => { addPhotos(event.target.files); event.currentTarget.value = ""; }} /></label>{previewUrls.length ? <div className="catalog-item-inline-previews">{previewUrls.map((url, index) => <button type="button" key={url} onClick={() => { URL.revokeObjectURL(url); setPreviewUrls((current) => current.filter((_, candidate) => candidate !== index)); setFiles((current) => current.filter((_, candidate) => candidate !== index)); }} aria-label={`Remove new photo ${index + 1}`}><img src={url} alt={`New photo ${index + 1}`} /><X size={14} /></button>)}</div> : null}{error ? <div className="create-error">{error}</div> : null}<footer><button className="text-button" type="button" onClick={onCancel}>Cancel</button><button className="primary-button" disabled={saving} type="submit"><Save size={16} /> {saving ? "Saving…" : "Save changes"}</button></footer></form>;
+}
+
+function CatalogDeleteConfirmSheet({ title, body, pending, onCancel, onConfirm }: { title: string; body: string; pending: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return <motion.div className="catalog-delete-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onCancel}><motion.section className="catalog-delete-sheet" role="alertdialog" aria-modal="true" aria-labelledby="catalog-delete-title" initial={{ opacity: 0, y: 22, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 320 }} onClick={(event) => event.stopPropagation()}><span className="catalog-delete-icon"><Trash2 size={20} /></span><span className="eyebrow">REMOVE FROM COLLECTION</span><h2 id="catalog-delete-title">{title}</h2><p>{body}</p><footer><button className="secondary-button" type="button" disabled={pending} onClick={onCancel}>Keep it</button><button className="danger-button" type="button" disabled={pending} onClick={onConfirm}><Trash2 size={16} /> {pending ? "Deleting…" : "Delete"}</button></footer></motion.section></motion.div>;
 }
 
 function SubcollectionEditorSheet({ subcollection, collection, viewer, onClose, onSaved }: { subcollection: SubcollectionDTO; collection: CollectionDTO; viewer: ViewerDTO; onClose: () => void; onSaved: (message: string) => void }) {

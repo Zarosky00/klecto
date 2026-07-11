@@ -19,7 +19,6 @@ import {
   Send,
   Share2,
   SlidersHorizontal,
-  Star,
   Trash2,
   UsersRound,
   X,
@@ -28,7 +27,6 @@ import {
   createCollectionPostAction,
   createSubcollectionAction,
   deleteCollectionAction,
-  deleteItemAction,
   deleteSubcollectionAction,
   recordCollectionShareAction,
   updateCollectionAction,
@@ -37,7 +35,6 @@ import { SubcollectionWorkspace } from "./subcollection-workspace";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CollectionDTO,
-  ItemDTO,
   SubcollectionDTO,
   TemplateDTO,
   ViewerDTO,
@@ -52,6 +49,10 @@ type CollectionManagerProps = {
 };
 
 type Notice = { type: "error" | "success"; text: string } | null;
+
+type DeleteConfirmation =
+  | { kind: "collection" }
+  | { kind: "subcollection"; subcollection: SubcollectionDTO };
 
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/heic"]);
 
@@ -97,6 +98,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   const [showAddSubcollection, setShowAddSubcollection] = useState(false);
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const [selectedSubcollection, setSelectedSubcollection] = useState<SubcollectionDTO | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogKind, setCatalogKind] = useState<"all" | "brand" | "series" | "era" | "custom">("all");
   const [catalogVisibility, setCatalogVisibility] = useState<Visibility | "inherit" | "all">("all");
@@ -208,15 +210,34 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
     });
   };
 
-  const deleteSubcollection = (subcollection: SubcollectionDTO) => {
-    if (!window.confirm(`Delete “${subcollection.name}”? Its items will stay in the main collection.`)) return;
+  const requestSubcollectionDelete = (subcollection: SubcollectionDTO) => {
+    setNotice(null);
+    setDeleteConfirmation({ kind: "subcollection", subcollection });
+  };
+
+  const confirmDelete = () => {
+    const confirmation = deleteConfirmation;
+    if (!confirmation) return;
     setNotice(null);
     startTransition(async () => {
-      const result = await deleteSubcollectionAction(subcollection.id);
+      const result = confirmation.kind === "collection"
+        ? await deleteCollectionAction(collection.id)
+        : await deleteSubcollectionAction(confirmation.subcollection.id);
+
       if (!result.ok) {
-        setNotice({ type: "error", text: result.error ?? "The subcollection could not be deleted." });
+        setNotice({
+          type: "error",
+          text: result.error ?? (confirmation.kind === "collection" ? "The collection could not be deleted." : "The subcollection could not be deleted."),
+        });
         return;
       }
+
+      if (confirmation.kind === "collection") {
+        window.location.href = "/";
+        return;
+      }
+
+      setDeleteConfirmation(null);
       setNotice({ type: "success", text: "Subcollection deleted." });
       window.setTimeout(() => window.location.reload(), 300);
     });
@@ -387,13 +408,36 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
 
         {showEditor ? (
           <section className="settings-card studio-settings studio-details-card">
-            <div className="settings-card-title"><span><Pencil size={16} /></span><div><h2>Collection settings</h2><p>Rename it, change its template, or control who can see it.</p></div></div>
-            <div className="settings-form-grid"><label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} /></label><label><span>Template</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}><option value="">Custom collection</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label><label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} /></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label></div>
-            <div className="studio-actions"><button className="danger-button" disabled={pending} onClick={() => { if (window.confirm(`Delete “${collection.name}” and every item inside it?`)) { startTransition(async () => { const result = await deleteCollectionAction(collection.id); if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Collection could not be deleted." }); window.location.href = "/"; }); } }}><Trash2 size={16} /> Delete collection</button><button className="primary-button" disabled={pending || !name.trim()} onClick={saveDetails}><Save size={16} /> Save settings</button></div>
+            <div className="settings-card-title">
+              <span><Pencil size={16} /></span>
+              <div><h2>Collection settings</h2><p>Rename it, change its template, or control who can see it.</p></div>
+            </div>
+            <div className="settings-form-grid">
+              <label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} /></label>
+              <label><span>Template</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}><option value="">Custom collection</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
+              <label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} /></label>
+              <label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label>
+            </div>
+            <div className="studio-actions">
+              <button className="danger-button" disabled={pending} onClick={() => { setNotice(null); setDeleteConfirmation({ kind: "collection" }); }}><Trash2 size={16} /> Delete collection</button>
+              <button className="primary-button" disabled={pending || !name.trim()} onClick={saveDetails}><Save size={16} /> Save settings</button>
+            </div>
           </section>
         ) : null}
 
-        {selectedSubcollection ? <div className="catalog-action-backdrop" role="presentation" onClick={() => setSelectedSubcollection(null)}><section className="catalog-action-sheet" role="dialog" aria-modal="true" aria-label={`${selectedSubcollection.name} options`} onClick={(event) => event.stopPropagation()}><span className="eyebrow">SECTION DETAILS</span><h2>{selectedSubcollection.name}</h2><p className="collection-action-summary">{selectedSubcollection.description || "A focused part of this collection."}</p><button onClick={() => { window.location.href = `/collections/${collection.id}/subcollections/${selectedSubcollection.id}`; }}><ChevronRight size={18} /> Open and edit section</button><button className="danger" disabled={pending} onClick={() => { const target = selectedSubcollection; setSelectedSubcollection(null); deleteSubcollection(target); }}><Trash2 size={18} /> Delete section</button><button className="cancel" onClick={() => setSelectedSubcollection(null)}>Cancel</button></section></div> : null}
+        {selectedSubcollection ? <div className="catalog-action-backdrop" role="presentation" onClick={() => setSelectedSubcollection(null)}><section className="catalog-action-sheet" role="dialog" aria-modal="true" aria-label={`${selectedSubcollection.name} options`} onClick={(event) => event.stopPropagation()}><span className="eyebrow">SECTION DETAILS</span><h2>{selectedSubcollection.name}</h2><p className="collection-action-summary">{selectedSubcollection.description || "A focused part of this collection."}</p><button onClick={() => { window.location.href = `/collections/${collection.id}/subcollections/${selectedSubcollection.id}`; }}><ChevronRight size={18} /> Open and edit section</button><button className="danger" disabled={pending} onClick={() => { const target = selectedSubcollection; setSelectedSubcollection(null); requestSubcollectionDelete(target); }}><Trash2 size={18} /> Delete section</button><button className="cancel" onClick={() => setSelectedSubcollection(null)}>Cancel</button></section></div> : null}
+
+        {deleteConfirmation ? <DeleteConfirmationSheet
+          eyebrow={deleteConfirmation.kind === "collection" ? "DELETE COLLECTION" : "DELETE SECTION"}
+          title={deleteConfirmation.kind === "collection" ? `Delete ${collection.name}?` : `Delete ${deleteConfirmation.subcollection.name}?`}
+          description={deleteConfirmation.kind === "collection"
+            ? "This permanently removes the collection and every item inside it. This cannot be undone."
+            : `This removes the section from ${collection.name}. Its items will stay in the main collection.`}
+          confirmLabel={deleteConfirmation.kind === "collection" ? "Delete collection" : "Delete section"}
+          pending={pending}
+          onCancel={() => setDeleteConfirmation(null)}
+          onConfirm={confirmDelete}
+        /> : null}
 
         {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
       </section>
@@ -401,72 +445,32 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   );
 }
 
-// Kept temporarily for the direct-item grid while its owner controls are consolidated above.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function LegacySubcollectionWorkspace({ viewer, collection, subcollection }: CollectionManagerProps & { subcollection: SubcollectionDTO }) {
-  const [notice, setNotice] = useState<Notice>(null);
-  const [pending, startTransition] = useTransition();
-  const items = collection.items
-    .filter((item) => item.subcollectionId === subcollection.id)
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  const effectiveVisibility = subcollection.visibility ?? collection.visibility;
-
-  const deleteItem = (item: ItemDTO) => {
-    if (!window.confirm(`Delete “${item.title}”?`)) return;
-    startTransition(async () => {
-      const result = await deleteItemAction(item.id);
-      if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Item could not be deleted." });
-      setNotice({ type: "success", text: "Item deleted." });
-      window.setTimeout(() => window.location.reload(), 300);
-    });
-  };
-
-  const deleteSubcollection = () => {
-    if (!window.confirm(`Delete “${subcollection.name}”? Its items will stay in ${collection.name}.`)) return;
-    startTransition(async () => {
-      const result = await deleteSubcollectionAction(subcollection.id);
-      if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Subcollection could not be deleted." });
-      window.location.href = `/collections/${collection.id}`;
-    });
-  };
-
+function DeleteConfirmationSheet({
+  eyebrow,
+  title,
+  description,
+  confirmLabel,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
   return (
-    <main className="collection-studio-page">
-      <header className="settings-topbar">
-        <Link href={`/collections/${collection.id}`}><ArrowLeft size={17} /> {collection.name}</Link>
-        <span className="eyebrow">SUBCOLLECTION</span>
-        <span>@{viewer.username}</span>
-      </header>
-      <section className="collection-studio-shell subcollection-workspace-shell">
-        <nav className="collection-breadcrumb" aria-label="Collection hierarchy"><Link href="/collections">Collections</Link><ChevronRight size={14} /><Link href={`/collections/${collection.id}`}>{collection.name}</Link><ChevronRight size={14} /><span>{subcollection.name}</span></nav>
-        <section className="subcollection-page-hero">
-          <div className="subcollection-page-mark"><Layers3 size={28} /><span>{subcollection.kind}</span></div>
-          <div><span className="eyebrow">{displayVisibility(effectiveVisibility)} · {String(subcollection.position + 1).padStart(2, "0")} IN THIS COLLECTION</span><h1>{subcollection.name}</h1><p>{subcollection.description || `A dedicated part of ${collection.name}.`}</p><div className="studio-meta"><span>{items.length} {items.length === 1 ? "item" : "items"}</span><span>Newest first</span><span>Inside {collection.name}</span></div></div>
-          <div className="subcollection-page-actions"><Link className="secondary-button" href="/"><Plus size={16} /> Add item</Link><button className="danger-button" disabled={pending} onClick={deleteSubcollection}><Trash2 size={16} /> Delete</button></div>
-        </section>
-        <section className="studio-items-section subcollection-items-section">
-          <div className="studio-section-head"><div><span className="eyebrow">STEP 3 · BROWSE THE ITEMS</span><h2>Items in order</h2></div><Link href={`/collections/${collection.id}`}>All subcollections <ChevronRight size={15} /></Link></div>
-          <ItemGrid items={items} pending={pending} onDelete={deleteItem} emptyTitle="This subcollection is ready." emptyBody="Add an item from Klecto and choose this subcollection to place it here." numbered />
-        </section>
-        {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
+    <div className="catalog-action-backdrop catalog-confirm-backdrop" role="presentation" onClick={() => { if (!pending) onCancel(); }}>
+      <section className="catalog-action-sheet catalog-confirm-sheet" role="alertdialog" aria-modal="true" aria-labelledby="catalog-delete-confirmation-title" onClick={(event) => event.stopPropagation()}>
+        <span className="eyebrow">{eyebrow}</span>
+        <h2 id="catalog-delete-confirmation-title">{title}</h2>
+        <p className="collection-action-summary catalog-confirm-copy">{description}</p>
+        <button className="danger catalog-confirm-action" disabled={pending} onClick={onConfirm}><Trash2 size={18} /> {confirmLabel}</button>
+        <button className="cancel" disabled={pending} onClick={onCancel}>Keep it</button>
       </section>
-    </main>
-  );
-}
-
-function ItemGrid({ items, pending, onDelete, emptyTitle, emptyBody, numbered = false }: { items: ItemDTO[]; pending: boolean; onDelete: (item: ItemDTO) => void; emptyTitle: string; emptyBody: string; numbered?: boolean }) {
-  return (
-    <div className="studio-item-grid">
-      {items.map((item, index) => <article key={item.id}>
-        <div className={`studio-item-image ${item.imageUrl ? "" : "placeholder"}`}>
-          {item.imageUrl ? <img src={item.imageUrl} alt={item.title} /> : <Layers3 />}
-          {numbered ? <b className="studio-item-order">{String(index + 1).padStart(2, "0")}</b> : null}
-          {item.isFavorite ? <i><Star size={13} fill="currentColor" /></i> : null}
-          {item.visibility === "private" ? <span><LockKeyhole size={13} /></span> : null}
-        </div>
-        <div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{[item.model, item.year, item.condition].filter(Boolean).join(" · ") || "Catalogued object"}</p><button disabled={pending} onClick={() => onDelete(item)}><Trash2 size={14} /> Delete</button></div>
-      </article>)}
-      {items.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>{emptyTitle}</strong><p>{emptyBody}</p></div> : null}
     </div>
   );
 }
