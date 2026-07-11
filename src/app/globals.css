@@ -1050,9 +1050,10 @@ body {
 .demo-media-viewer-details { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; max-height: min(64dvh, 520px); overflow-y: auto; overscroll-behavior: contain; padding: 10px 18px 24px; border-top: 1px solid rgb(255 255 255 / 14%); border-radius: 22px 22px 0 0; background: linear-gradient(145deg, #f9fbf1, #edf4d9); box-shadow: 0 -20px 50px rgb(0 0 0 / 30%), inset 0 1px 0 white; color: #303a25; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: #b4c886 transparent; }
 .demo-media-viewer-details-handle { display: grid; width: 100%; height: 22px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .demo-media-viewer-details-handle i { width: 34px; height: 4px; border-radius: 99px; background: #a4b77a; }
-.demo-media-viewer-details-heading { display: grid; gap: 4px; margin-top: 3px; }
+.demo-media-viewer-details-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 3px; }.demo-media-viewer-details-heading > div { display: grid; gap: 4px; min-width: 0; }
 .demo-media-viewer-details .eyebrow { color: #74864d; }
 .demo-media-viewer-details h3 { margin: 0; color: #2d3924; font-family: Georgia, serif; font-size: 25px; font-weight: 500; letter-spacing: -.7px; line-height: 1.04; }
+.demo-media-viewer-details-expand { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid #cfddb1; border-radius: 10px 10px 10px 4px; background: rgb(255 255 255 / 68%); color: #607635; cursor: pointer; transition: transform .2s var(--motion-out), background .2s ease, box-shadow .2s ease; }.demo-media-viewer-details-expand:hover { transform: translateY(-1px); background: white; box-shadow: 0 8px 16px rgb(51 66 24 / 14%); }
 .demo-media-viewer-description { margin: 13px 0; color: #596153; font-size: 12px; line-height: 1.58; }
 .demo-media-viewer-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .demo-media-viewer-facts > div { min-width: 0; padding: 10px 11px; border: 1px solid #dce6c6; border-radius: 11px 11px 11px 4px; background: rgb(255 255 255 / 64%); }
@@ -1073,4 +1074,9 @@ body {
 }
 @media (max-width: 640px) {
   .demo-media-viewer-backdrop { padding: 12px; }.demo-media-viewer { width: min(100%, 640px); height: min(86dvh, 760px); max-height: min(86dvh, 760px); border-radius: 20px 20px 20px 7px; grid-template-rows: auto minmax(0, 1fr) auto; }.demo-media-viewer-header { padding: 14px 16px 12px; }.demo-media-viewer-header h2 { max-width: min(72vw, 360px); font-size: 20px; }.demo-media-viewer-footer { grid-template-columns: auto minmax(40px, 1fr) minmax(116px, 45%); gap: 8px; min-height: 52px; padding: 8px 15px calc(8px + env(safe-area-inset-bottom)); }.demo-media-viewer-details-toggle > span { max-width: 118px; }.demo-media-viewer-details { max-height: min(69dvh, 600px); padding: 9px 16px calc(23px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; }.demo-media-viewer-details h3 { font-size: 23px; }.demo-media-viewer-backdrop--immersive { padding: 0; }.demo-media-viewer--immersive { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+}
+
+/* On phones, object details are a real bottom sheet rather than a panel trapped inside the photo card. */
+@media (max-width: 640px) {
+  .demo-media-viewer-details--mobile { position: absolute; z-index: 170; right: 0; bottom: 0; left: 0; width: 100vw; max-height: min(74dvh, 640px); padding: 10px 18px calc(26px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; box-shadow: 0 -24px 64px rgb(0 0 0 / 38%), inset 0 1px 0 white; }
 }

@@ -2,7 +2,7 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -194,6 +194,18 @@ function useBodyScrollLock(locked: boolean) {
       window.scrollTo(0, snapshot.scrollY);
     };
   }, [locked]);
+}
+
+function useViewportMatch(query: string) {
+  return useSyncExternalStore(
+    (notify) => {
+      const mediaQuery = window.matchMedia(query);
+      mediaQuery.addEventListener("change", notify);
+      return () => mediaQuery.removeEventListener("change", notify);
+    },
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
 }
 
 async function shareDemoTarget(title: string, text: string, url: string) {
@@ -648,7 +660,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
         {editingItem ? <DemoItemEditorSheet key={`edit-item-${editingItem.id}`} item={editingItem} subcollectionName={name} onClose={() => setEditingItem(null)} onSaved={saveItem} /> : null}
         {addingItem ? <DemoItemEditorSheet key="add-item" subcollectionName={name} onClose={() => setAddingItem(false)} onSaved={saveItem} /> : null}
         {editingSubcollection ? <DemoSubcollectionEditorSheet key={`edit-subcollection-${subcollection.id}`} subcollection={{ ...subcollection, name, description, kind, visibility, coverUrl }} onClose={() => setEditingSubcollection(false)} onSaved={saveSubcollection} /> : null}
-        {mediaViewer ? <DemoMediaViewer key={`media-viewer-${mediaViewer.item.id}`} item={mediaViewer.item} images={mediaViewer.images} initialIndex={mediaViewer.initialIndex} onClose={() => setMediaViewer(null)} /> : null}
+        {mediaViewer ? <DemoMediaViewer key={`media-viewer-${mediaViewer.item.id}`} item={mediaViewer.item} images={mediaViewer.images} initialIndex={mediaViewer.initialIndex} onClose={() => setMediaViewer(null)} onOpenDetail={() => { setMediaViewer(null); setItemDetail(mediaViewer.item); }} /> : null}
         {deleteConfirmation ? <DemoDeleteConfirmSheet key={`delete-${deleteConfirmation.title}`} confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}
       </AnimatePresence>
       {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
@@ -1080,7 +1092,7 @@ function DemoSubcollectionEditorSheet({ subcollection, onClose, onSaved }: { sub
   return <motion.div className="catalog-editor-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-editor-sheet subcollection-editor-sheet" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">EDIT SUBCOLLECTION</span><h2>{subcollection.name}</h2></div><button onClick={onClose} aria-label="Close subcollection editor"><X size={20} /></button></header><label className="subcollection-cover-upload"><div>{coverUrl ? <img src={coverUrl} alt="Subcollection cover preview" /> : <Layers3 size={25} />}</div><span><Camera size={16} /> Change cover</span><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) selectCover(file); event.currentTarget.value = ""; }} /></label><div className="catalog-editor-grid"><label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} /></label><label><span>Kind</span><select value={kind} onChange={(event) => setKind(event.target.value as DemoSubcollection["kind"])}><option value="brand">Brand</option><option value="series">Series</option><option value="era">Era</option><option value="custom">Custom</option></select></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility | "inherit")}><option value="inherit">Inherit collection privacy</option><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={600} /></label></div>{error ? <div className="create-error">{error}</div> : null}<footer><button className="text-button" onClick={onClose}>Cancel</button><button className="primary-button" onClick={save}><Save size={16} /> Save subcollection</button></footer></motion.section></motion.div>;
 }
 
-function DemoMediaViewer({ item, images, initialIndex, onClose }: { item: DemoItem; images: string[]; initialIndex: number; onClose: () => void }) {
+function DemoMediaViewer({ item, images, initialIndex, onClose, onOpenDetail }: { item: DemoItem; images: string[]; initialIndex: number; onClose: () => void; onOpenDetail: () => void }) {
   useBodyScrollLock(true);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [zoomed, setZoomed] = useState(false);
@@ -1090,6 +1102,7 @@ function DemoMediaViewer({ item, images, initialIndex, onClose }: { item: DemoIt
   const detailsSwipeStart = useRef<number | null>(null);
   const detailsOpenedBySwipe = useRef(false);
   const detailsId = `demo-media-details-${item.id}`;
+  const useBottomDetailsSheet = useViewportMatch("(max-width: 640px)");
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1129,6 +1142,13 @@ function DemoMediaViewer({ item, images, initialIndex, onClose }: { item: DemoIt
     { label: "Visibility", value: visibilityLabel(item.visibility) },
   ];
 
+  const renderDetails = (mobile = false) => <motion.aside id={detailsId} className={`demo-media-viewer-details${mobile ? " demo-media-viewer-details--mobile" : ""}`} aria-label={`${item.title} details`} initial={{ y: "104%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "104%", opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 310 }} onClick={(event) => event.stopPropagation()}>
+    <button className="demo-media-viewer-details-handle" type="button" onClick={() => setDetailsOpen(false)} aria-label="Close item details"><i /></button>
+    <div className="demo-media-viewer-details-heading"><div><span className="eyebrow">OBJECT DETAILS</span><h3>{item.title}</h3></div><button className="demo-media-viewer-details-expand" type="button" onClick={onOpenDetail} aria-label="Open full item details"><Maximize2 size={17} /></button></div>
+    <p className="demo-media-viewer-description">{item.description || "No description has been added to this object yet."}</p>
+    <dl className="demo-media-viewer-facts">{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}<div><dt>Favourite</dt><dd>{item.isFavorite ? "Saved favourite" : "Not marked"}</dd></div></dl>
+  </motion.aside>;
+
   return <motion.div className={`demo-media-viewer-backdrop${immersive ? " demo-media-viewer-backdrop--immersive" : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
     <motion.section layout className={`demo-media-viewer${immersive ? " demo-media-viewer--immersive" : ""}`} role="dialog" aria-modal="true" aria-label={`${item.title} photo viewer`} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onClick={(event) => event.stopPropagation()}>
       <header className="demo-media-viewer-header">
@@ -1147,14 +1167,12 @@ function DemoMediaViewer({ item, images, initialIndex, onClose }: { item: DemoIt
         <button className={`demo-media-viewer-details-toggle ${detailsOpen ? "is-open" : ""}`} type="button" aria-expanded={detailsOpen} aria-controls={detailsId} onPointerDown={(event) => { detailsSwipeStart.current = event.clientY; detailsOpenedBySwipe.current = false; }} onPointerUp={openDetailsFromSwipe} onPointerCancel={() => { detailsSwipeStart.current = null; }} onClick={() => { if (detailsOpenedBySwipe.current) { detailsOpenedBySwipe.current = false; return; } setDetailsOpen((current) => !current); }}><span>{item.description || "View item details"}</span><ChevronUp size={15} /></button>
       </footer>
       <AnimatePresence initial={false}>
-        {detailsOpen ? <motion.aside id={detailsId} className="demo-media-viewer-details" aria-label={`${item.title} details`} initial={{ y: "104%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "104%", opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 310 }}>
-          <button className="demo-media-viewer-details-handle" type="button" onClick={() => setDetailsOpen(false)} aria-label="Close item details"><i /></button>
-          <div className="demo-media-viewer-details-heading"><span className="eyebrow">OBJECT DETAILS</span><h3>{item.title}</h3></div>
-          <p className="demo-media-viewer-description">{item.description || "No description has been added to this object yet."}</p>
-          <dl className="demo-media-viewer-facts">{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}<div><dt>Favourite</dt><dd>{item.isFavorite ? "Saved favourite" : "Not marked"}</dd></div></dl>
-        </motion.aside> : null}
+        {detailsOpen && !useBottomDetailsSheet ? renderDetails() : null}
       </AnimatePresence>
     </motion.section>
+    <AnimatePresence initial={false}>
+      {detailsOpen && useBottomDetailsSheet ? renderDetails(true) : null}
+    </AnimatePresence>
   </motion.div>;
 }
 
