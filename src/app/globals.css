@@ -965,3 +965,9 @@ body {
 @media (max-width: 640px) {
   .catalog-item-detail-backdrop { align-items: stretch; padding: 0; }.catalog-item-detail-sheet { width: 100vw; max-height: none; height: 100dvh; border-radius: 0; }.catalog-item-detail-header { padding: calc(14px + env(safe-area-inset-top)) 16px 13px; }.catalog-item-detail-header h2 { font-size: clamp(29px, 8.5vw, 38px); }.catalog-item-detail-gallery { height: min(34dvh, 285px); }.catalog-item-detail-copy { padding: 16px; }.catalog-item-detail-description { font-size: 12px; line-height: 1.58; }.catalog-item-detail-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 15px; }.catalog-item-detail-actions { align-items: stretch; flex-direction: column; gap: 7px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }.catalog-item-detail-actions > div { justify-content: space-between; }.catalog-item-detail-actions > div > button { flex: 1; justify-content: center; }.catalog-item-detail-owner-actions { padding: 7px 0 0; border-top: 1px solid #e4e8d9; border-left: 0; }.catalog-item-detail-owner-actions > button { max-width: 50%; }.catalog-item-detail-indicator { right: 10px; bottom: 10px; }.catalog-item-detail-favorite { top: 10px; left: 10px; }
 }
+
+/* Keep the item itself—not unused studio space—at the centre of a detail gallery. */
+.catalog-item-detail-context { display: inline-flex; align-items: center; gap: 6px; color: #66783b; font-size: 9px; font-weight: 800; letter-spacing: .75px; line-height: 1.2; text-transform: uppercase; }
+.catalog-item-detail-gallery-scroll { position: absolute; inset: 0; min-height: 0; align-items: stretch; }
+.catalog-item-detail-gallery-slide { position: relative; align-self: stretch; min-height: 0; height: auto; overflow: hidden; background: #aab971; }
+.catalog-item-detail-gallery-slide img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; }
