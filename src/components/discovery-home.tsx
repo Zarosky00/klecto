@@ -4,6 +4,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import {
   Bell,
+  Bookmark,
   ChevronRight,
   Ellipsis,
   Heart,
@@ -210,6 +211,47 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     });
   };
 
+  const previewItemEntry = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]): DiscoveryFeedEntryDTO => ({
+    ...((catalogTarget ?? mediaTarget ?? postTarget) as DiscoveryFeedEntryDTO),
+    id: `preview-item-${item.id}`,
+    kind: "item",
+    targetKind: "item",
+    targetId: item.id,
+    title: item.title,
+    description: item.description,
+    imageUrls: item.imageUrl ? [item.imageUrl] : [],
+    imageCount: item.imageUrl ? 1 : 0,
+    subcollection: (catalogTarget ?? mediaTarget ?? postTarget)?.subcollection ?? (item.subcollectionId ? {
+      id: item.subcollectionId,
+      slug: item.subcollectionId,
+      name: item.subcollectionName ?? "Section",
+      kind: "custom",
+    } : null),
+    likeCount: 0,
+    likedByViewer: false,
+    commentCount: 0,
+    comments: [],
+    wishlistCount: 0,
+    wishlisters: [],
+  });
+
+  const openPreviewMedia = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
+    setCatalogTarget(null);
+    setMediaTarget(previewItemEntry(item));
+  };
+  const openPreviewComment = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
+    closePost();
+    setCatalogTarget(null);
+    setMediaTarget(null);
+    setCommentTarget(previewItemEntry(item));
+  };
+  const openPreviewWishlist = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
+    closePost();
+    setCatalogTarget(null);
+    setMediaTarget(null);
+    setWishlistTarget(previewItemEntry(item));
+  };
+
   return (
     <section className={styles.discovery}>
       <header className="page-header feed-header">
@@ -258,7 +300,8 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
           onLike={() => toggleLike(postTarget)} onComment={() => { closePost(); setCommentTarget(postTarget); }} onWishlist={() => setWishlistTarget(postTarget)}
           onMedia={() => setMediaTarget(postTarget)} onWishlisters={() => setWishlisterTarget(postTarget)} />}
         {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} onViewCollection={() => setCatalogTarget(mediaTarget)} />}
-        {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)} />}
+        {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
+          onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
         {wishlisterTarget && <WishlisterSheet entry={wishlisterTarget} demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
         {notice && <motion.div className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
       </AnimatePresence>
@@ -456,7 +499,14 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
   );
 }
 
-function CatalogExplorerSheet({ entry, demo, onClose }: { entry: DiscoveryFeedEntryDTO; demo: boolean; onClose: () => void }) {
+function CatalogExplorerSheet({ entry, demo, onClose, onItemMedia, onItemComment, onItemWishlist }: {
+  entry: DiscoveryFeedEntryDTO;
+  demo: boolean;
+  onClose: () => void;
+  onItemMedia: (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => void;
+  onItemComment: (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => void;
+  onItemWishlist: (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => void;
+}) {
   const preview = entry.catalogPreview;
   const isCollection = entry.targetKind === "collection";
   const isSubcollection = entry.targetKind === "subcollection";
@@ -465,14 +515,46 @@ function CatalogExplorerSheet({ entry, demo, onClose }: { entry: DiscoveryFeedEn
   const heading = isCollection ? preview.collection.name : isSubcollection ? entry.subcollection?.name ?? entry.title : entry.title;
   const eyebrow = isCollection ? "COLLECTION EXPLORER" : isSubcollection ? "SUBCOLLECTION EXPLORER" : "ITEM CONTEXT";
   const collectionHref = demo ? entry.sourceHref : "/u/" + encodeURIComponent(entry.sourceAuthor.username) + "/collections/" + encodeURIComponent(preview.collection.slug);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [likedItems, setLikedItems] = useState<Set<string>>(() => new Set());
+  const [savedItems, setSavedItems] = useState<Set<string>>(() => new Set());
+  const [wishlistedItems, setWishlistedItems] = useState<Set<string>>(() => new Set());
+  const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
+  const toggleSet = (setter: (value: Set<string> | ((current: Set<string>) => Set<string>)) => void, id: string) => {
+    setter((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const openItem = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
+    setSelectedItemId((current) => current === item.id ? null : item.id);
+  };
+  const itemActions = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => (
+    <div className={styles.explorerItemActions} aria-label={`${item.title} actions`}>
+      <button type="button" className={likedItems.has(item.id) ? styles.explorerActionActive : undefined} onClick={() => toggleSet(setLikedItems, item.id)} aria-label="Like item"><Heart size={15} fill={likedItems.has(item.id) ? "currentColor" : "none"} /></button>
+      <button type="button" onClick={() => onItemComment(item)} aria-label="Comment on item"><MessageCircle size={15} /></button>
+      <button type="button" className={wishlistedItems.has(item.id) ? styles.explorerActionActive : undefined} onClick={() => { toggleSet(setWishlistedItems, item.id); onItemWishlist(item); }} aria-label="Wishlist item"><Repeat2 size={15} /></button>
+      <button type="button" className={savedItems.has(item.id) ? styles.explorerActionActive : undefined} onClick={() => toggleSet(setSavedItems, item.id)} aria-label="Save item"><Bookmark size={15} fill={savedItems.has(item.id) ? "currentColor" : "none"} /></button>
+    </div>
+  );
   return createPortal(
     <motion.div className={styles.catalogExplorerBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section className={styles.catalogExplorerSheet} initial={{ y: 64, opacity: 0.72 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 64, opacity: 0.72 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={"Explore " + heading}>
+      <motion.section className={styles.catalogExplorerSheet} initial={{ y: 44, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 44, opacity: 0.7 }} transition={{ type: "spring", stiffness: 330, damping: 30, mass: 0.72 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={"Explore " + heading}>
         <div className={styles.sheetHandle} />
         <header><div><span>{eyebrow}</span><h3>{heading}</h3><p>{isCollection ? "Browse the sections and objects in this collection." : isSubcollection ? "Everything kept in this section." : "From " + (entry.subcollection?.name ?? preview.collection.name) + "."}</p></div><button type="button" onClick={onClose} aria-label="Close collection explorer"><X size={19} /></button></header>
-        {!isCollection && entry.subcollection && <a className={styles.explorerParent} href={collectionHref}><Layers3 size={17} /><span><small>PART OF</small><b>{preview.collection.name} / {entry.subcollection.name}</b></span><ChevronRight size={17} /></a>}
-        {isCollection && <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>SUBCOLLECTIONS</span><small>{preview.subcollections.length}</small></div><div className={styles.explorerSections}>{preview.subcollections.map((section) => <a key={section.id} href={entry.sourceHref}><div>{section.coverUrl ? <img src={section.coverUrl} alt="" /> : <Layers3 size={20} />}</div><span><small>{section.kind}</small><b>{section.name}</b><em>{section.itemCount} items <ChevronRight size={14} /></em></span></a>)}</div></section>}
-        <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>{isCollection ? "ALL ITEMS" : isSubcollection ? "ITEMS IN THIS SECTION" : "RELATED ITEMS"}</span><small>{items.length}</small></div><div className={styles.explorerItems}>{items.map((item) => <a key={item.id} href={entry.sourceHref}><div>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <PackageOpen size={19} />}</div><span><b>{item.title}</b><small>{(item.subcollectionName ?? "Unsorted") + (item.description ? " / " + item.description : "")}</small></span></a>)}{!items.length && <div className={styles.explorerEmpty}>No public items in this part of the collection yet.</div>}</div></section>
+        <div className={styles.catalogExplorerScroll}>
+          {!isCollection && entry.subcollection && <a className={styles.explorerParent} href={collectionHref}><Layers3 size={17} /><span><small>PART OF</small><b>{preview.collection.name} / {entry.subcollection.name}</b></span><ChevronRight size={17} /></a>}
+          {isCollection && <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>SUBCOLLECTIONS</span><small>{preview.subcollections.length}</small></div><div className={styles.explorerSections}>{preview.subcollections.map((section) => <a key={section.id} href={entry.sourceHref}><div>{section.coverUrl ? <img src={section.coverUrl} alt="" /> : <Layers3 size={20} />}</div><span><small>{section.kind}</small><b>{section.name}</b><em>{section.itemCount} items <ChevronRight size={14} /></em></span></a>)}</div></section>}
+          {selectedItem && <section className={styles.explorerPreview}>
+            <button type="button" className={styles.explorerPreviewImage} onClick={() => onItemMedia(selectedItem)} aria-label={`Open ${selectedItem.title} photos`}>
+              {selectedItem.imageUrl ? <img src={selectedItem.imageUrl} alt="" /> : <PackageOpen size={28} />}
+              <span>Open photos</span>
+            </button>
+            <div className={styles.explorerPreviewCopy}><small>{selectedItem.subcollectionName ?? "ITEM"}</small><b>{selectedItem.title}</b>{selectedItem.description && <p>{selectedItem.description}</p>}{itemActions(selectedItem)}</div>
+          </section>}
+          <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>{isCollection ? "ALL ITEMS" : isSubcollection ? "ITEMS IN THIS SECTION" : "RELATED ITEMS"}</span><small>{items.length}</small></div><div className={styles.explorerItems}>{items.map((item) => <article key={item.id} className={`${styles.explorerItem} ${selectedItemId === item.id ? styles.explorerItemSelected : ""}`}><button type="button" className={styles.explorerItemMain} onClick={() => openItem(item)}><div>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <PackageOpen size={19} />}</div><span><b>{item.title}</b><small>{(item.subcollectionName ?? "Unsorted") + (item.description ? " / " + item.description : "")}</small></span><ChevronRight size={15} /></button></article>)}{!items.length && <div className={styles.explorerEmpty}>No public items in this part of the collection yet.</div>}</div></section>
+        </div>
         <footer><a href={entry.sourceHref}>Open full catalogue <ChevronRight size={16} /></a></footer>
       </motion.section>
     </motion.div>,
@@ -491,7 +573,17 @@ function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishli
   onMedia: () => void;
   onWishlisters: () => void;
 }) {
-  return (
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const rootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = rootOverflow;
+    };
+  }, []);
+  return createPortal(
     <motion.div className={styles.postBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.article className={styles.postDetail} initial={{ y: 28, opacity: 0.75 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0.75 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} post`}>
         <header><div><span>POST DETAIL</span><h3>{entry.kind === "wishlist" ? "Wishlist post" : kindLabels[entry.targetKind]}</h3></div><button type="button" onClick={onClose} aria-label="Close post"><X size={20} /></button></header>
@@ -526,7 +618,8 @@ function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishli
           </section>
         </div>
       </motion.article>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
