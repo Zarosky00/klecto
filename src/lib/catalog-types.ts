@@ -235,6 +235,9 @@ export type DiscoveryCommentDTO = {
   body: string;
   createdAt: string;
   isOwn: boolean;
+  likeCount?: number;
+  likedByViewer?: boolean;
+  replyCount?: number;
 };
 
 export type DiscoveryPreviewSubcollectionDTO = {
@@ -282,9 +285,11 @@ export type DiscoveryFeedEntryDTO = {
   likeCount: number;
   likedByViewer: boolean;
   commentCount: number;
+  viewCount: number;
   comments: DiscoveryCommentDTO[];
   wishlistCount: number;
   wishlisters: DiscoveryAuthorDTO[];
+  likers: DiscoveryAuthorDTO[];
   catalogPreview: DiscoveryCatalogPreviewDTO;
   sourceHref: string;
 };
