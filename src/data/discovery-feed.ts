@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type {
   DiscoveryAuthorDTO,
   DiscoveryCatalogDTO,
+  DiscoveryCommentDTO,
   DiscoveryFeedDTO,
   DiscoveryFeedEntryDTO,
   DiscoverySubcollectionDTO,
@@ -55,6 +56,16 @@ type ProfileRow = {
   display_name: string;
   avatar_path: string | null;
   is_verified: boolean;
+};
+
+type CatalogCommentRow = {
+  id: string;
+  collection_id: string | null;
+  subcollection_id: string | null;
+  item_id: string | null;
+  author_id: string;
+  body: string;
+  created_at: string;
 };
 
 const demoImage = {
@@ -114,6 +125,11 @@ function fallbackFeed(): DiscoveryFeedDTO {
   const paperTrail: DiscoverySubcollectionDTO = { id: "demo-paper-trail", slug: "paper-trail", name: "Paper trail", kind: "era" };
   const href = "/demo/collections/childhood-things";
   const now = new Date().toISOString();
+  const maya: DiscoveryAuthorDTO = { ...author, id: "demo-maya", username: "mayakeeps", displayName: "Maya Sen", avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85" };
+  const demoComments: DiscoveryCommentDTO[] = [
+    { id: "demo-comment-1", author: maya, body: "This is the kind of detail that makes a collection feel alive.", createdAt: now, isOwn: false },
+    { id: "demo-comment-2", author, body: "Exactly. I still remember finding it again years later.", createdAt: now, isOwn: true },
+  ];
   return {
     isDemoFallback: true,
     entries: [
@@ -122,29 +138,29 @@ function fallbackFeed(): DiscoveryFeedDTO {
         author, collection, subcollection: null, title: collection.name,
         description: "Toys, tickets, and the small proof that a good day happened.", quoteText: null,
         imageUrls: [demoImage.collection], imageCount: 1, mood: null, createdAt: now,
-        likeCount: 42, likedByViewer: false, commentCount: 7, sourceHref: href,
+        likeCount: 42, likedByViewer: false, commentCount: 7, comments: demoComments, sourceHref: href,
       },
       {
         id: "demo-section-toy-box", kind: "subcollection", targetKind: "subcollection", targetId: toyBox.id,
         author, collection, subcollection: toyBox, title: toyBox.name,
         description: "Controllers, figures, and the after-school rituals that lasted for hours.", quoteText: null,
         imageUrls: [demoImage.section], imageCount: 1, mood: null, createdAt: now,
-        likeCount: 18, likedByViewer: false, commentCount: 4, sourceHref: href,
+        likeCount: 18, likedByViewer: false, commentCount: 4, comments: demoComments.slice(0, 1), sourceHref: href,
       },
       {
         id: "demo-item-controller", kind: "item", targetKind: "item", targetId: "demo-controller",
         author, collection, subcollection: toyBox, title: "Midnight game controller",
         description: "The controller that survived every weekend tournament with one stubborn trigger.", quoteText: null,
         imageUrls: [demoImage.item], imageCount: 3, mood: "memory", createdAt: now,
-        likeCount: 24, likedByViewer: false, commentCount: 4, sourceHref: href,
+        likeCount: 24, likedByViewer: false, commentCount: 4, comments: demoComments, sourceHref: href,
       },
       {
         id: "demo-wishlist-library-card", kind: "wishlist", targetKind: "item", targetId: "demo-library-card",
-        author: { ...author, id: "demo-maya", username: "mayakeeps", displayName: "Maya Sen", avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85" },
+        author: maya,
         collection, subcollection: paperTrail, title: "Library card",
         description: "Paper card · 2006 · worn", quoteText: "I want to find one like this before the year ends.",
         imageUrls: [demoImage.object], imageCount: 2, mood: "neutral", createdAt: now,
-        likeCount: 12, likedByViewer: false, commentCount: 2, sourceHref: href,
+        likeCount: 12, likedByViewer: false, commentCount: 2, comments: demoComments.slice(0, 1), sourceHref: href,
       },
     ],
   };
@@ -243,8 +259,8 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
     subcollectionIds.length ? supabase.from("subcollection_likes").select("subcollection_id, user_id").in("subcollection_id", subcollectionIds) : Promise.resolve({ data: [] as { subcollection_id: string; user_id: string }[] }),
     itemIds.length ? supabase.from("item_likes").select("item_id, user_id").in("item_id", itemIds) : Promise.resolve({ data: [] as { item_id: string; user_id: string }[] }),
     commentTargetFilter
-      ? supabase.from("catalog_comments").select("collection_id, subcollection_id, item_id").is("deleted_at", null).or(commentTargetFilter)
-      : Promise.resolve({ data: [] as { collection_id: string | null; subcollection_id: string | null; item_id: string | null }[] }),
+      ? supabase.from("catalog_comments").select("id, collection_id, subcollection_id, item_id, author_id, body, created_at").is("deleted_at", null).or(commentTargetFilter).order("created_at", { ascending: true })
+      : Promise.resolve({ data: [] as CatalogCommentRow[] }),
   ]);
 
   const countAndMine = (rows: { id: string; userId: string }[]) => {
@@ -259,10 +275,34 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
   const collectionReaction = countAndMine((collectionLikes.data ?? []).map((row) => ({ id: row.collection_id, userId: row.user_id })));
   const subcollectionReaction = countAndMine((subcollectionLikes.data ?? []).map((row) => ({ id: row.subcollection_id, userId: row.user_id })));
   const itemReaction = countAndMine((itemLikes.data ?? []).map((row) => ({ id: row.item_id, userId: row.user_id })));
+  const commentRows = (catalogComments.data ?? []) as CatalogCommentRow[];
+  const commentAuthorIds = [...new Set(commentRows.map((row) => row.author_id).filter((id) => !profileById.has(id)))];
+  if (commentAuthorIds.length) {
+    const { data: commentProfiles } = await supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_path, is_verified")
+      .in("id", commentAuthorIds);
+    (commentProfiles as ProfileRow[] | null ?? []).forEach((profile) => profileById.set(profile.id, profile));
+  }
+
   const commentCount = new Map<string, number>();
-  (catalogComments.data ?? []).forEach((row) => {
+  const commentsByTarget = new Map<string, DiscoveryCommentDTO[]>();
+  commentRows.forEach((row) => {
     const id = row.collection_id ?? row.subcollection_id ?? row.item_id;
-    if (id) commentCount.set(id, (commentCount.get(id) ?? 0) + 1);
+    if (!id) return;
+    commentCount.set(id, (commentCount.get(id) ?? 0) + 1);
+    const author = authorFor(row.author_id) ?? {
+      id: row.author_id,
+      username: "collector",
+      displayName: "Collector",
+      avatarUrl: null,
+      isVerified: false,
+    };
+    const thread = commentsByTarget.get(id) ?? [];
+    if (thread.length < 4) {
+      thread.push({ id: row.id, author, body: row.body, createdAt: row.created_at, isOwn: row.author_id === identity?.id });
+      commentsByTarget.set(id, thread);
+    }
   });
 
   const collectionDTO = (row: CatalogCollectionRow): DiscoveryCatalogDTO => ({ id: row.id, slug: row.slug, name: row.name });
@@ -282,7 +322,7 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
       id: `collection-${row.id}`, kind: "collection", targetKind: "collection", targetId: row.id, author,
       collection: catalog, subcollection: null, title: row.name, description: row.description, quoteText: null,
       imageUrls: row.cover_path && signedUrlByPath.get(row.cover_path) ? [signedUrlByPath.get(row.cover_path)!] : [], imageCount: row.cover_path ? 1 : 0,
-      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0,
+      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [],
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -297,7 +337,7 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
       id: `subcollection-${row.id}`, kind: "subcollection", targetKind: "subcollection", targetId: row.id, author,
       collection: catalog, subcollection: section, title: row.name, description: row.description, quoteText: null,
       imageUrls: row.cover_path && signedUrlByPath.get(row.cover_path) ? [signedUrlByPath.get(row.cover_path)!] : [], imageCount: row.cover_path ? 1 : 0,
-      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0,
+      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [],
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -314,7 +354,7 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
       collection: catalog, subcollection: section ? subcollectionDTO(section) : null, title: row.title,
       description: row.description ?? row.brand, quoteText: null,
       imageUrls: orderedMedia.map((media) => signedUrlByPath.get(media.storage_path)).filter((url): url is string => Boolean(url)), imageCount: orderedMedia.length,
-      mood: row.mood, createdAt: row.created_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0,
+      mood: row.mood, createdAt: row.created_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [],
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -353,7 +393,7 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
       id: post.id, kind: "wishlist", targetKind, targetId, author,
       collection: collectionDTO(catalogRow), subcollection: sectionRow ? subcollectionDTO(sectionRow) : null,
       title, description, quoteText: post.quote_text, imageUrls, imageCount, mood, createdAt: post.created_at,
-      ...reaction, commentCount: commentCount.get(targetId) ?? 0, sourceHref: sourceHref(owner, collectionDTO(catalogRow)),
+      ...reaction, commentCount: commentCount.get(targetId) ?? 0, comments: commentsByTarget.get(targetId) ?? [], sourceHref: sourceHref(owner, collectionDTO(catalogRow)),
     });
   });
 

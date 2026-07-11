@@ -5,6 +5,11 @@
 .wishlist { border-color: #d6e5a9 !important; background: linear-gradient(145deg, #fffefa, #f7fce8) !important; }
 .wishlistLabel { display: flex; align-items: center; gap: 7px; color: #627c31; padding: 3px 0 11px; font-size: 12px; font-weight: 750; }
 .quote { margin: 13px 0 16px; color: #2f3826; font-size: 15px; font-weight: 620; line-height: 1.5; }
+.repostBox { margin-top: 12px; border: 1px solid #d6e4ae; border-radius: 17px; background: rgb(255 255 255 / 68%); padding: 13px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 84%); }
+.repostBox .collectionLabel { margin-top: 1px; }
+.repostBox h2 { margin-top: 2px; }
+.repostBox .post-actions { margin-top: 11px; border-top: 1px solid #e5ebd5; padding-top: 9px; }
+.repostBoxLabel { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; color: #6f853c; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .collectionLabel { width: 100%; border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; text-decoration: none; }
 .collectionLabel > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collectionLabel b { margin-left: auto; border: 1px solid #dfe5cf; border-radius: 999px; color: #758265; padding: 4px 7px; font-size: 9px; letter-spacing: .04em; }
@@ -37,6 +42,27 @@
 .quoteLabel em { color: #9ba590; font-style: normal; font-weight: 600; letter-spacing: 0; }
 .quoteLabel textarea { width: 100%; min-height: 100px; margin: 0; }
 .notice { position: fixed; z-index: 100; left: 50%; bottom: 25px; transform: translateX(-50%); max-width: calc(100vw - 34px); border: 1px solid #d9e7af; border-radius: 999px; background: #26321b; box-shadow: 0 10px 28px rgb(19 25 15 / 24%); color: #f6ffdb; padding: 11px 16px; font-size: 12px; font-weight: 700; text-align: center; }
+.commentDrawer { display: flex; flex-direction: column; min-height: min(680px, calc(100vh - 34px)); max-height: calc(100vh - 34px); }
+.commentContext { display: flex; align-items: center; gap: 10px; margin: 0 18px; border: 1px solid #e2e7d6; border-radius: 14px; background: #fafbf5; padding: 9px; }
+.commentContext img, .commentContext > span { width: 42px; height: 42px; border-radius: 10px; object-fit: cover; background: #dce8bf; color: #60783a; display: grid; place-items: center; }
+.commentContext div { display: grid; min-width: 0; gap: 3px; }
+.commentContext b { overflow: hidden; color: #30382a; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.commentContext small { overflow: hidden; color: #7c8674; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.commentContext a { margin-left: auto; color: #657b3a; }
+.commentSort { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px 9px; color: #4c5841; font-size: 12px; font-weight: 750; }
+.commentSort small { color: #92998c; font-size: 10px; font-weight: 500; }
+.commentList { flex: 1; min-height: 110px; overflow-y: auto; padding: 0 18px 11px; }
+.commentRow { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 9px; padding: 12px 0; border-bottom: 1px solid #eef0e7; }
+.commentRow > img, .commentRow > span { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #354126; color: white; display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+.commentRow > div { min-width: 0; }
+.commentRow strong { display: flex; align-items: baseline; gap: 5px; color: #36402d; font-size: 12px; }
+.commentRow strong small { overflow: hidden; color: #91988b; font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.commentRow p { margin: 4px 0 5px; color: #555d50; font-size: 13px; line-height: 1.42; }
+.commentRow button { border: 0; background: transparent; color: #6f843c; padding: 0; font-size: 11px; font-weight: 750; }
+.commentEmpty { display: grid; min-height: 116px; place-content: center; justify-items: center; gap: 8px; color: #92998b; font-size: 12px; text-align: center; }
+.commentComposer { border-top: 1px solid #e5e9dd; background: #fffefa; padding: 12px 0 0; }
+.commentComposer textarea { min-height: 72px; }
+.commentComposer footer { padding-bottom: 13px; }
 @media (max-width: 640px) {
   .demoNote { margin: 12px 12px 0; }
   .wishlistLabel { padding-bottom: 9px; }
@@ -44,4 +70,6 @@
   .quote { font-size: 14px; }
   .sheetBackdrop { padding: 0; }
   .sheet { border-radius: 24px 24px 0 0; }
+  .commentDrawer { min-height: min(590px, calc(100vh - 16px)); max-height: calc(100vh - 16px); }
+  .repostBox { padding: 11px; }
 }

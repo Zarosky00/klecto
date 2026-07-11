@@ -229,6 +229,14 @@ export type DiscoverySubcollectionDTO = DiscoveryCatalogDTO & {
   kind: "brand" | "series" | "era" | "custom";
 };
 
+export type DiscoveryCommentDTO = {
+  id: string;
+  author: DiscoveryAuthorDTO;
+  body: string;
+  createdAt: string;
+  isOwn: boolean;
+};
+
 export type DiscoveryFeedEntryDTO = {
   /** A post id for a quoted wishlist, otherwise a stable catalog-prefixed id. */
   id: string;
@@ -248,6 +256,7 @@ export type DiscoveryFeedEntryDTO = {
   likeCount: number;
   likedByViewer: boolean;
   commentCount: number;
+  comments: DiscoveryCommentDTO[];
   sourceHref: string;
 };
 

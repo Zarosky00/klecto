@@ -28,7 +28,7 @@ import {
   setItemLikeAction,
   setSubcollectionLikeAction,
 } from "@/app/actions/catalog";
-import type { DiscoveryFeedDTO, DiscoveryFeedEntryDTO, ViewerDTO } from "@/lib/catalog-types";
+import type { DiscoveryCommentDTO, DiscoveryFeedDTO, DiscoveryFeedEntryDTO, ViewerDTO } from "@/lib/catalog-types";
 import styles from "./discovery-home.module.css";
 
 type DiscoveryFilter = "all" | "collection" | "subcollection" | "item" | "wishlist";
@@ -116,8 +116,32 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
   const addComment = (body: string) => {
     const target = commentTarget;
     if (!target || !body.trim()) return;
+    const newComment: DiscoveryCommentDTO = {
+      id: `local-comment-${Date.now()}`,
+      author: viewer ? {
+        id: viewer.id,
+        username: viewer.username,
+        displayName: viewer.displayName,
+        avatarUrl: viewer.avatarUrl,
+        isVerified: viewer.isVerified,
+      } : {
+        id: "demo-you",
+        username: "you",
+        displayName: "You",
+        avatarUrl: null,
+        isVerified: false,
+      },
+      body: body.trim(),
+      createdAt: new Date().toISOString(),
+      isOwn: true,
+    };
+    const addLocalComment = () => setEntries((current) => updateEntry(current, target.id, (item) => ({
+      ...item,
+      commentCount: item.commentCount + 1,
+      comments: [...item.comments, newComment].slice(-4),
+    })));
     if (feed.isDemoFallback) {
-      setEntries((current) => updateEntry(current, target.id, (item) => ({ ...item, commentCount: item.commentCount + 1 })));
+      addLocalComment();
       setCommentTarget(null);
       return showNotice("Comment added to this demo shelf.");
     }
@@ -131,7 +155,7 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
           body,
         });
         if (!result.ok) return showNotice(result.error ?? "Could not add the comment.");
-        setEntries((current) => updateEntry(current, target.id, (item) => ({ ...item, commentCount: item.commentCount + 1 })));
+        addLocalComment();
         setCommentTarget(null);
         showNotice("Comment posted.");
       })();
@@ -201,7 +225,7 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
       {visibleEntries.length === 0 && <div className={styles.empty}><Layers3 size={22} /><strong>No matching shelves yet.</strong><span>Try another part of the catalogue.</span></div>}
 
       <AnimatePresence>
-        {commentTarget && <CommentComposer entry={commentTarget} pending={isPending} onClose={() => setCommentTarget(null)} onSubmit={addComment} />}
+        {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} onClose={() => setCommentTarget(null)} onSubmit={addComment} />}
         {wishlistTarget && <WishlistComposer entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
         {notice && <motion.div className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
       </AnimatePresence>
@@ -219,19 +243,8 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
   onWishlist: () => void;
 }) {
   const isWishlist = entry.kind === "wishlist";
-  return (
-    <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`} layout
-      initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ delay: Math.min(index, 6) * 0.045, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
-      {isWishlist && <div className={styles.wishlistLabel}><Repeat2 size={15} /><span>{entry.author.displayName} wishlisted this</span></div>}
-      <div className="post-head">
-        <a href={demo ? entry.sourceHref : `/u/${encodeURIComponent(entry.author.username)}`} className="author">
-          {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span className={styles.avatarFallback}>{entry.author.displayName.slice(0, 1)}</span>}
-          <span><strong>{entry.author.displayName}{entry.author.isVerified && <ShieldCheck size={14} />}</strong><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></span>
-        </a>
-        <button type="button" className="icon-button" aria-label="More catalog options"><Ellipsis size={19} /></button>
-      </div>
-      {isWishlist && entry.quoteText && <p className={styles.quote}>{entry.quoteText}</p>}
+  const sourceCard = (
+    <>
       <a href={entry.sourceHref} className={`collection-label ${styles.collectionLabel}`}>
         <span><KindIcon kind={entry.targetKind} /></span><span>{entrySource(entry)}</span><b>{kindLabels[entry.targetKind]}</b><ChevronRight size={14} />
       </a>
@@ -245,7 +258,6 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
       <div className="metadata-row">
         <span>{entry.targetKind === "collection" ? "Full catalogue" : entry.collection.name}</span>
         {entry.subcollection && <span>{entry.subcollection.name}</span>}
-        {isWishlist && <span>Quoted wishlist</span>}
       </div>
       <footer className="post-actions">
         <button type="button" className={entry.likedByViewer ? "liked" : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
@@ -253,20 +265,55 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
         <button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button>
         <a href={entry.sourceHref} className={styles.openAction}>Explore <ChevronRight size={18} /></a>
       </footer>
+    </>
+  );
+  return (
+    <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`} layout
+      initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ delay: Math.min(index, 6) * 0.045, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
+      {isWishlist && <div className={styles.wishlistLabel}><Repeat2 size={15} /><span>{entry.author.displayName} wishlisted this</span></div>}
+      <div className="post-head">
+        <a href={demo ? entry.sourceHref : `/u/${encodeURIComponent(entry.author.username)}`} className="author">
+          {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span className={styles.avatarFallback}>{entry.author.displayName.slice(0, 1)}</span>}
+          <span><strong>{entry.author.displayName}{entry.author.isVerified && <ShieldCheck size={14} />}</strong><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></span>
+        </a>
+        <button type="button" className="icon-button" aria-label="More catalog options"><Ellipsis size={19} /></button>
+      </div>
+      {isWishlist && entry.quoteText && <p className={styles.quote}>{entry.quoteText}</p>}
+      {isWishlist
+        ? <div className={styles.repostBox}><div className={styles.repostBoxLabel}><Repeat2 size={14} /> Original {kindLabels[entry.targetKind].toLowerCase()}</div>{sourceCard}</div>
+        : sourceCard}
     </motion.article>
   );
 }
 
-function CommentComposer({ entry, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; pending: boolean; onClose: () => void; onSubmit: (body: string) => void }) {
+function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; pending: boolean; onClose: () => void; onSubmit: (body: string) => void }) {
   const [body, setBody] = useState("");
   return (
     <motion.div className={styles.sheetBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section className={styles.sheet} initial={{ y: 40, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()}>
+      <motion.aside className={`${styles.sheet} ${styles.commentDrawer}`} initial={{ x: 36, opacity: 0.7 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 36, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
         <div className={styles.sheetHandle} />
-        <header><div><span>COMMENT ON {kindLabels[entry.targetKind].toUpperCase()}</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button></header>
-        <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add something thoughtful..." maxLength={2000} autoFocus />
-        <footer><span>{body.length}/2000</span><button type="button" disabled={!body.trim() || pending} onClick={() => onSubmit(body)}><Send size={16} /> Post comment</button></footer>
-      </motion.section>
+        <header><div><span>CONVERSATION</span><h3>{entry.commentCount} comments</h3></div><button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button></header>
+        <div className={styles.commentContext}>
+          {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span><ImageIcon size={18} /></span>}
+          <div><b>{entry.title}</b><small>{entrySource(entry)}</small></div>
+          <a href={entry.sourceHref} aria-label="Open original"><ChevronRight size={18} /></a>
+        </div>
+        <div className={styles.commentSort}><span>Top comments</span><small>{entry.comments.length ? "Open the original to view all" : "Start the conversation"}</small></div>
+        <div className={styles.commentList}>
+          {entry.comments.map((comment) => (
+            <article key={comment.id} className={styles.commentRow}>
+              {comment.author.avatarUrl ? <img src={comment.author.avatarUrl} alt="" /> : <span>{comment.author.displayName.slice(0, 1)}</span>}
+              <div><strong>{comment.author.displayName}<small>@{comment.author.username} / {relativeTime(comment.createdAt)}</small></strong><p>{comment.body}</p><button type="button" onClick={() => setBody((current) => current ? current : `@${comment.author.username} `)}>Reply</button></div>
+            </article>
+          ))}
+          {!entry.comments.length && <div className={styles.commentEmpty}><MessageCircle size={20} /><span>No replies yet. Be the first to add to this shelf.</span></div>}
+        </div>
+        <form className={styles.commentComposer} onSubmit={(event) => { event.preventDefault(); onSubmit(body); }}>
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add to the conversation..." maxLength={2000} autoFocus />
+          <footer><span>{body.length}/2000</span><button type="submit" disabled={!body.trim() || pending}><Send size={16} /> Reply</button></footer>
+        </form>
+      </motion.aside>
     </motion.div>
   );
 }
