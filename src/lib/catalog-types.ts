@@ -257,6 +257,8 @@ export type DiscoveryFeedEntryDTO = {
   likedByViewer: boolean;
   commentCount: number;
   comments: DiscoveryCommentDTO[];
+  wishlistCount: number;
+  wishlisters: DiscoveryAuthorDTO[];
   sourceHref: string;
 };
 

@@ -19,7 +19,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createCatalogCommentAction,
@@ -28,7 +28,7 @@ import {
   setItemLikeAction,
   setSubcollectionLikeAction,
 } from "@/app/actions/catalog";
-import type { DiscoveryCommentDTO, DiscoveryFeedDTO, DiscoveryFeedEntryDTO, ViewerDTO } from "@/lib/catalog-types";
+import type { DiscoveryAuthorDTO, DiscoveryCommentDTO, DiscoveryFeedDTO, DiscoveryFeedEntryDTO, ViewerDTO } from "@/lib/catalog-types";
 import styles from "./discovery-home.module.css";
 
 type DiscoveryFilter = "all" | "collection" | "subcollection" | "item" | "wishlist";
@@ -79,6 +79,9 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
   const [entries, setEntries] = useState(feed.entries);
   const [commentTarget, setCommentTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [wishlistTarget, setWishlistTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [postTarget, setPostTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [wishlisterTarget, setWishlisterTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const visibleEntries = useMemo(() => filter === "all" ? entries : entries.filter((entry) => entry.kind === filter), [entries, filter]);
@@ -217,7 +220,8 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
         <AnimatePresence initial={false} mode="popLayout">
           {visibleEntries.map((entry, index) => (
             <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} pending={isPending}
-              onLike={() => toggleLike(entry)} onComment={() => setCommentTarget(entry)} onWishlist={() => setWishlistTarget(entry)} />
+              onLike={() => toggleLike(entry)} onComment={() => setCommentTarget(entry)} onWishlist={() => setWishlistTarget(entry)}
+              onMedia={() => setMediaTarget(entry)} onOpenPost={() => setPostTarget(entry)} onWishlisters={() => setWishlisterTarget(entry)} />
           ))}
         </AnimatePresence>
       </div>
@@ -227,13 +231,18 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
       <AnimatePresence>
         {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} onClose={() => setCommentTarget(null)} onSubmit={addComment} />}
         {wishlistTarget && <WishlistComposer entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
+        {postTarget && <PostDetail entry={postTarget} demo={feed.isDemoFallback} pending={isPending} onClose={() => setPostTarget(null)}
+          onLike={() => toggleLike(postTarget)} onComment={() => { setPostTarget(null); setCommentTarget(postTarget); }} onWishlist={() => setWishlistTarget(postTarget)}
+          onMedia={() => setMediaTarget(postTarget)} onWishlisters={() => setWishlisterTarget(postTarget)} />}
+        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} />}
+        {wishlisterTarget && <WishlisterSheet entry={wishlisterTarget} demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
         {notice && <motion.div className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
       </AnimatePresence>
     </section>
   );
 }
 
-function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishlist }: {
+function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishlist, onMedia, onOpenPost, onWishlisters }: {
   entry: DiscoveryFeedEntryDTO;
   index: number;
   demo: boolean;
@@ -241,6 +250,9 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
   onLike: () => void;
   onComment: () => void;
   onWishlist: () => void;
+  onMedia: () => void;
+  onOpenPost: () => void;
+  onWishlisters: () => void;
 }) {
   const isWishlist = entry.kind === "wishlist";
   const sourceCard = (
@@ -250,11 +262,11 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
       </a>
       <h2>{entry.title}</h2>
       {entry.description && <p className="post-copy">{entry.description}</p>}
-      <a href={entry.sourceHref} className={`media-frame ${styles.media}`} aria-label={`Open ${entry.title}`}>
+      <button type="button" className={`media-frame ${styles.media}`} onClick={onMedia} aria-label={`View ${entry.title} photos`}>
         {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span className={styles.mediaFallback}><ImageIcon size={28} /></span>}
         <span className={`mood-tag ${styles.kindTag}`}><KindIcon kind={entry.targetKind} size={13} />{kindLabels[entry.targetKind]}</span>
         {entry.imageCount > 1 && <span className="image-count">{entry.imageCount} photos</span>}
-      </a>
+      </button>
       <div className="metadata-row">
         <span>{entry.targetKind === "collection" ? "Full catalogue" : entry.collection.name}</span>
         {entry.subcollection && <span>{entry.subcollection.name}</span>}
@@ -263,12 +275,16 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
         <button type="button" className={entry.likedByViewer ? "liked" : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
         <button type="button" disabled={pending} onClick={onComment}><MessageCircle size={19} /><span>{entry.commentCount}</span></button>
         <button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button>
+        <button type="button" className={styles.wishlistCount} disabled={!entry.wishlistCount} onClick={onWishlisters} aria-label={`View ${entry.wishlistCount} people who wishlisted this`}><span>{entry.wishlistCount}</span></button>
         <a href={entry.sourceHref} className={styles.openAction}>Explore <ChevronRight size={18} /></a>
       </footer>
     </>
   );
   return (
     <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`} layout
+      tabIndex={0}
+      onClick={(event) => { if (!(event.target as HTMLElement).closest("a, button")) onOpenPost(); }}
+      onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !(event.target as HTMLElement).closest("a, button")) { event.preventDefault(); onOpenPost(); } }}
       initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98 }}
       transition={{ delay: Math.min(index, 6) * 0.045, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
       {isWishlist && <div className={styles.wishlistLabel}><Repeat2 size={15} /><span>{entry.author.displayName} wishlisted this</span></div>}
@@ -314,6 +330,116 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
           <footer><span>{body.length}/2000</span><button type="submit" disabled={!body.trim() || pending}><Send size={16} /> Reply</button></footer>
         </form>
       </motion.aside>
+    </motion.div>
+  );
+}
+
+function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose: () => void }) {
+  const images = entry.imageUrls.length ? entry.imageUrls : [];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const goTo = useCallback((index: number) => {
+    if (!images.length || !scrollRef.current) return;
+    const next = (index + images.length) % images.length;
+    scrollRef.current.scrollTo({ left: scrollRef.current.clientWidth * next, behavior: "smooth" });
+    setActiveIndex(next);
+  }, [images.length]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") goTo(activeIndex - 1);
+      if (event.key === "ArrowRight") goTo(activeIndex + 1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  // activeIndex is intentionally part of the shortcut state.
+  }, [activeIndex, goTo, onClose]);
+  return (
+    <motion.div className={styles.mediaBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+      <motion.section className={styles.mediaViewer} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
+        <header><div><span>PHOTOS</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+        <div ref={scrollRef} className={styles.mediaTrack} onScroll={(event) => {
+          const width = event.currentTarget.clientWidth || 1;
+          setActiveIndex(Math.round(event.currentTarget.scrollLeft / width));
+        }}>
+          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
+        </div>
+        <footer>
+          <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
+          {images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}
+          <span>Swipe to browse</span>
+        </footer>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishlist, onMedia, onWishlisters }: {
+  entry: DiscoveryFeedEntryDTO;
+  demo: boolean;
+  pending: boolean;
+  onClose: () => void;
+  onLike: () => void;
+  onComment: () => void;
+  onWishlist: () => void;
+  onMedia: () => void;
+  onWishlisters: () => void;
+}) {
+  return (
+    <motion.div className={styles.postBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+      <motion.article className={styles.postDetail} initial={{ y: 28, opacity: 0.75 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0.75 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} post`}>
+        <header><div><span>POST DETAIL</span><h3>{entry.kind === "wishlist" ? "Wishlist post" : kindLabels[entry.targetKind]}</h3></div><button type="button" onClick={onClose} aria-label="Close post"><X size={20} /></button></header>
+        <div className={styles.postScroll}>
+          <a href={demo ? entry.sourceHref : `/u/${encodeURIComponent(entry.author.username)}`} className={styles.postAuthor}>
+            {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span>{entry.author.displayName.slice(0, 1)}</span>}
+            <div><b>{entry.author.displayName}</b><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></div>
+          </a>
+          {entry.kind === "wishlist" && <div className={styles.postWishlisted}><Repeat2 size={15} /> Wishlisted this {kindLabels[entry.targetKind].toLowerCase()}</div>}
+          {entry.quoteText && <p className={styles.postQuote}>{entry.quoteText}</p>}
+          <button type="button" className={styles.postMedia} onClick={onMedia}>
+            {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span><ImageIcon size={28} /></span>}
+            {entry.imageCount > 1 && <i>{entry.imageCount} photos</i>}
+          </button>
+          <div className={styles.postSource}><span><KindIcon kind={entry.targetKind} />{entrySource(entry)}</span><a href={entry.sourceHref}>Explore catalogue <ChevronRight size={15} /></a></div>
+          <h2>{entry.title}</h2>
+          {entry.description && <p className={styles.postDescription}>{entry.description}</p>}
+          <div className={styles.postActions}>
+            <button type="button" className={entry.likedByViewer ? styles.detailLiked : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /> {entry.likeCount}</button>
+            <button type="button" onClick={onComment}><MessageCircle size={19} /> {entry.commentCount}</button>
+            <button type="button" onClick={onWishlist}><Repeat2 size={19} /> Wishlist</button>
+          </div>
+          <button type="button" className={styles.wishlistedBy} onClick={onWishlisters}>
+            <div className={styles.wishlistAvatars}>{entry.wishlisters.slice(0, 3).map((collector) => collector.avatarUrl ? <img key={collector.id} src={collector.avatarUrl} alt="" /> : <span key={collector.id}>{collector.displayName.slice(0, 1)}</span>)}</div>
+            <span><b>{entry.wishlistCount} wishlisted</b><small>See collectors who saved this to their future list</small></span><ChevronRight size={17} />
+          </button>
+          <section className={styles.postReplies}>
+            <div><span>COMMENTS</span><button type="button" onClick={onComment}>View discussion</button></div>
+            {entry.comments.slice(0, 2).map((comment) => <article key={comment.id}><b>{comment.author.displayName}</b><p>{comment.body}</p></article>)}
+            {!entry.comments.length && <p className={styles.postRepliesEmpty}>No replies yet. Start the conversation.</p>}
+          </section>
+        </div>
+      </motion.article>
+    </motion.div>
+  );
+}
+
+function WishlisterSheet({ entry, demo, onClose }: { entry: DiscoveryFeedEntryDTO; demo: boolean; onClose: () => void }) {
+  const collectors: DiscoveryAuthorDTO[] = entry.wishlisters;
+  return (
+    <motion.div className={styles.wishlisterBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+      <motion.section className={styles.wishlisterSheet} initial={{ y: 26, opacity: 0.75 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 26, opacity: 0.75 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="People who wishlisted this">
+        <header><div><span>WISHLISTED BY</span><h3>{entry.wishlistCount} collectors</h3></div><button type="button" onClick={onClose} aria-label="Close"><X size={19} /></button></header>
+        <p>{entry.title}</p>
+        <div className={styles.wishlisterList}>
+          {collectors.map((collector) => (
+            <a key={collector.id} href={demo ? entry.sourceHref : `/u/${encodeURIComponent(collector.username)}`}>
+              {collector.avatarUrl ? <img src={collector.avatarUrl} alt="" /> : <span>{collector.displayName.slice(0, 1)}</span>}
+              <div><b>{collector.displayName}</b><small>@{collector.username}</small></div><ChevronRight size={17} />
+            </a>
+          ))}
+          {!collectors.length && <div className={styles.wishlisterEmpty}>No public wishlist accounts yet.</div>}
+        </div>
+      </motion.section>
     </motion.div>
   );
 }
