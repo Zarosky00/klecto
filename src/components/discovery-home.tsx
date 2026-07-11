@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Ellipsis,
   Eye,
   Flag,
@@ -43,6 +44,23 @@ import {
 } from "@/app/actions/catalog";
 import type { DiscoveryAuthorDTO, DiscoveryCommentDTO, DiscoveryFeedDTO, DiscoveryFeedEntryDTO, ViewerDTO } from "@/lib/catalog-types";
 import styles from "./discovery-home.module.css";
+
+type ViewerDiscovery = {
+  id: string;
+  title: string;
+  eyebrow: string;
+  imageUrl: string;
+  current?: boolean;
+};
+
+const demoViewerDiscoveries: ViewerDiscovery[] = [
+  { id: "demo-arcade", title: "After-school arcade", eyebrow: "The toy box", imageUrl: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-bricks", title: "The brick drawer", eyebrow: "Building sets", imageUrl: "https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-console", title: "First home console", eyebrow: "Weekend games", imageUrl: "https://images.unsplash.com/photo-1486401899868-0e435ed85128?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-camera", title: "Pocket camera", eyebrow: "Weekend cameras", imageUrl: "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-tickets", title: "Tickets worth keeping", eyebrow: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=82" },
+  { id: "demo-postcards", title: "Postcards from home", eyebrow: "Paper trail", imageUrl: "https://images.unsplash.com/photo-1524348881814-1103f883e71c?auto=format&fit=crop&w=900&q=82" },
+];
 
 type DiscoveryFilter = "all" | "collection" | "subcollection" | "item" | "wishlist";
 
@@ -501,7 +519,9 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
 }
 
 function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onViewCollection: () => void }) {
-  const images = entry.imageUrls.length ? entry.imageUrls : [];
+  const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
+  const [relatedOpen, setRelatedOpen] = useState(false);
+  const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
   const [activeIndex, setActiveIndex] = useState(0);
   const [immersive, setImmersive] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -511,6 +531,39 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
   const pinchStartZoom = useRef(1);
   const didPinch = useRef(false);
   const lastImageTap = useRef(0);
+  const relatedDiscoveries = useMemo(() => {
+    const currentImage = entry.imageUrls[0];
+    const current: ViewerDiscovery[] = currentImage ? [{
+      id: `${entry.id}-current`,
+      title: entry.title,
+      eyebrow: "Currently viewing",
+      imageUrl: currentImage,
+      current: true,
+    }] : [];
+    const sections = entry.catalogPreview.subcollections
+      .filter((section) => Boolean(section.coverUrl))
+      .map((section) => ({
+        id: `section-${section.id}`,
+        title: section.name,
+        eyebrow: `${section.itemCount} ${section.itemCount === 1 ? "object" : "objects"}`,
+        imageUrl: section.coverUrl!,
+      }));
+    const items = entry.catalogPreview.items
+      .filter((item) => Boolean(item.imageUrl))
+      .map((item) => ({
+        id: `item-${item.id}`,
+        title: item.title,
+        eyebrow: item.subcollectionName ?? entry.collection.name,
+        imageUrl: item.imageUrl!,
+      }));
+    const samples = entry.id.startsWith("demo-") ? demoViewerDiscoveries : [];
+    const seen = new Set<string>();
+    return [...current, ...items, ...sections, ...samples].filter((discovery) => {
+      if (seen.has(discovery.imageUrl)) return false;
+      seen.add(discovery.imageUrl);
+      return true;
+    });
+  }, [entry]);
   const goTo = useCallback((index: number) => {
     if (!images.length || !scrollRef.current) return;
     const next = (index + images.length) % images.length;
@@ -565,10 +618,18 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
     lastImageTap.current = now;
     setImmersive((active) => !active);
   };
+  const exploreDiscovery = (discovery: ViewerDiscovery) => {
+    setSelectedDiscovery(discovery.current ? null : discovery);
+    setActiveIndex(0);
+    setZoom(1);
+    setImmersive(false);
+    setRelatedOpen(false);
+    scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+  };
   return createPortal(
     <motion.div className={`${styles.mediaBackdrop} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section className={`${styles.mediaViewer} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
-        <header><div><span>PHOTOS</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+      <motion.section layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
+        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTOS"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
           const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
@@ -578,10 +639,21 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
           {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={toggleFullscreen} style={index === activeIndex ? { transform: `scale(${zoom})` } : undefined} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
         </div>
         <footer>
-          <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
-          {images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}
+          <div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div>
+          <motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button>
           <motion.button type="button" className={styles.mediaCollectionArrow} onClick={onViewCollection} whileHover={{ x: 3 }} whileTap={{ scale: 0.86, x: 4 }} transition={{ type: "spring", stiffness: 420, damping: 20 }} aria-label="View collection"><ArrowRight size={17} /></motion.button>
         </footer>
+        <AnimatePresence initial={false}>
+          {relatedOpen && <motion.aside id="media-related-discoveries" className={styles.mediaRelatedPanel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}>
+            <div className={styles.mediaRelatedHead}><div><span>MORE FROM THIS CATALOGUE</span><strong>Keep exploring</strong></div><small>{relatedDiscoveries.length} finds</small></div>
+            <div className={styles.mediaRelatedMasonry}>
+              {relatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={styles.mediaRelatedCard} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Explore ${discovery.title}`}>
+                <img src={discovery.imageUrl} alt="" />
+                <span><small>{discovery.eyebrow}</small><strong>{discovery.title}</strong></span>
+              </motion.button>)}
+            </div>
+          </motion.aside>}
+        </AnimatePresence>
       </motion.section>
     </motion.div>,
     document.body,
