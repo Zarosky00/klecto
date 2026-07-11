@@ -573,7 +573,9 @@ function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishli
   onMedia: () => void;
   onWishlisters: () => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    setMounted(true);
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
@@ -583,6 +585,7 @@ function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishli
       document.documentElement.style.overflow = rootOverflow;
     };
   }, []);
+  if (!mounted) return null;
   return createPortal(
     <motion.div className={styles.postBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.article className={styles.postDetail} initial={{ y: 28, opacity: 0.75 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0.75 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} post`}>
