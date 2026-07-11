@@ -129,7 +129,7 @@ function fallbackFeed(): DiscoveryFeedDTO {
   const maya: DiscoveryAuthorDTO = { ...author, id: "demo-maya", username: "mayakeeps", displayName: "Maya Sen", avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=85" };
   const demoComments: DiscoveryCommentDTO[] = [
     { id: "demo-comment-1", author: maya, body: "This is the kind of detail that makes a collection feel alive.", createdAt: now, isOwn: false, likeCount: 12, replyCount: 1 },
-    { id: "demo-comment-2", author, body: "Exactly. I still remember finding it again years later.", createdAt: now, isOwn: true, likeCount: 4, replyCount: 0 },
+    { id: "demo-comment-2", author, body: "Exactly. I still remember finding it again years later.", createdAt: now, isOwn: true, parentId: "demo-comment-1", likeCount: 4, replyCount: 0 },
   ];
   const catalogPreview: DiscoveryCatalogPreviewDTO = {
     collection,

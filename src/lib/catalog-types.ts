@@ -235,6 +235,7 @@ export type DiscoveryCommentDTO = {
   body: string;
   createdAt: string;
   isOwn: boolean;
+  parentId?: string;
   likeCount?: number;
   likedByViewer?: boolean;
   replyCount?: number;
