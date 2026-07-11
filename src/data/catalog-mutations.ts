@@ -74,6 +74,7 @@ export type ItemMutationInput = {
   isFavorite: boolean;
   visibility: Visibility | null;
   mediaPaths: string[];
+  tags?: string[];
 };
 
 export type ItemMediaAppendMutationInput = {
@@ -540,6 +541,22 @@ export async function createItemMutation(input: ItemMutationInput): Promise<Acti
       await context.supabase.from("items").delete().eq("id", item.id).eq("user_id", context.identity.id);
       await removePendingMedia();
       return { ok: false, error: "The item media could not be attached." };
+    }
+  }
+
+  const tags = [...new Set((input.tags ?? []).map((tag) => tag.trim().toLocaleLowerCase()).filter(Boolean))];
+  if (tags.length) {
+    const { error: tagsError } = await context.supabase.from("item_tags").insert(
+      tags.map((tag) => ({
+        item_id: item.id,
+        user_id: context.identity.id,
+        tag,
+      })),
+    );
+    if (tagsError) {
+      await context.supabase.from("items").delete().eq("id", item.id).eq("user_id", context.identity.id);
+      await removePendingMedia();
+      return { ok: false, error: "The item tags could not be saved." };
     }
   }
   return { ok: true, id: item.id };

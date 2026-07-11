@@ -23,6 +23,10 @@ import {
   createCollectionAction,
   createItemAction,
   createSubcollectionAction,
+  deleteCollectionAction,
+  deleteSubcollectionAction,
+  updateCollectionAction,
+  updateSubcollectionAction,
 } from "@/app/actions/catalog";
 import { createClient } from "@/lib/supabase/client";
 import type { CatalogDashboardDTO, ItemMood, Visibility } from "@/lib/catalog-types";
@@ -30,6 +34,7 @@ import type { CatalogDashboardDTO, ItemMood, Visibility } from "@/lib/catalog-ty
 type CreateMode = "collection" | "subcollection" | "item";
 type SubcollectionKind = "brand" | "series" | "era" | "custom";
 type PhotoDraft = { file: File; previewUrl: string };
+type CoverDraft = { file: File; previewUrl: string };
 
 type CreationStudioProps = {
   initialData: CatalogDashboardDTO;
@@ -91,13 +96,14 @@ export function CreationStudio({
   const [shareToShelf, setShareToShelf] = useState(true);
   const [templateId, setTemplateId] = useState("");
   const [subcollectionKind, setSubcollectionKind] = useState<SubcollectionKind>("brand");
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [year, setYear] = useState("");
-  const [condition, setCondition] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
+  const [itemTags, setItemTags] = useState<string[]>([]);
   const [mood, setMood] = useState<ItemMood>("neutral");
   const [isFavorite, setIsFavorite] = useState(false);
   const [photos, setPhotos] = useState<PhotoDraft[]>([]);
+  const [collectionCover, setCollectionCover] = useState<CoverDraft | null>(null);
+  const [subcollectionCover, setSubcollectionCover] = useState<CoverDraft | null>(null);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -110,7 +116,7 @@ export function CreationStudio({
   const canCreate = !signedIn || (
     title.trim().length > 0
     && (mode === "collection" || Boolean(collectionId))
-    && (mode !== "item" || photos.length > 0)
+    && (mode !== "item" || (photos.length > 0 && Boolean(subcollectionId)))
   );
 
   const changeMode = (nextMode: CreateMode) => {
@@ -153,6 +159,69 @@ export function CreationStudio({
     });
   };
 
+  const chooseCover = (target: "collection" | "subcollection", fileList: FileList | null) => {
+    const file = fileList?.[0];
+    if (!file) return;
+    if (!supportedImageTypes.has(file.type) || file.size > 15 * 1024 * 1024) {
+      setError("Choose a JPG, PNG, WEBP, AVIF, or HEIC image under 15 MB for the cover.");
+      return;
+    }
+
+    const current = target === "collection" ? collectionCover : subcollectionCover;
+    if (current) URL.revokeObjectURL(current.previewUrl);
+    const nextCover = { file, previewUrl: URL.createObjectURL(file) };
+    if (target === "collection") setCollectionCover(nextCover);
+    else setSubcollectionCover(nextCover);
+    setError("");
+  };
+
+  const removeCover = (target: "collection" | "subcollection") => {
+    const current = target === "collection" ? collectionCover : subcollectionCover;
+    if (current) URL.revokeObjectURL(current.previewUrl);
+    if (target === "collection") setCollectionCover(null);
+    else setSubcollectionCover(null);
+  };
+
+  const addItemTag = () => {
+    const tag = tagDraft.trim().replace(/\s+/g, " ");
+    if (!tag) return;
+    if (tag.length > 24) {
+      setError("Keep each tag to 24 characters or fewer.");
+      return;
+    }
+    if (itemTags.some((entry) => entry.toLowerCase() === tag.toLowerCase())) {
+      setTagDraft("");
+      return;
+    }
+    if (itemTags.length >= 8) {
+      setError("An item can have up to eight tags.");
+      return;
+    }
+    if ([...itemTags, tag].join(" · ").length > 120) {
+      setError("Those tags are a little too long together. Try shorter words.");
+      return;
+    }
+    setItemTags((current) => [...current, tag]);
+    setTagDraft("");
+    setError("");
+  };
+
+  const removeItemTag = (tag: string) => {
+    setItemTags((current) => current.filter((entry) => entry !== tag));
+  };
+
+  const uploadCover = async (file: File, directory: string) => {
+    const viewer = initialData.viewer;
+    if (!viewer) throw new Error("Sign in before uploading a cover.");
+    const extension = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${viewer.id}/${directory}/cover-${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await createClient().storage
+      .from("collection-media")
+      .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
+    if (uploadError) throw new Error("The cover could not be uploaded. Please try again.");
+    return path;
+  };
+
   const publish = () => {
     if (!signedIn) {
       router.push("/login");
@@ -166,6 +235,10 @@ export function CreationStudio({
     }
     if ((mode === "subcollection" || mode === "item") && !collectionId) {
       setError("Choose a collection first.");
+      return;
+    }
+    if (mode === "item" && !subcollectionId) {
+      setError("Choose the subcollection where this item belongs.");
       return;
     }
     if (mode === "item" && !photos.length) {
@@ -185,6 +258,33 @@ export function CreationStudio({
           setError(result.error ?? "This collection could not be created.");
           return;
         }
+        if (collectionCover) {
+          let coverPath: string | null = null;
+          const rollbackCollection = async () => {
+            await deleteCollectionAction(result.id);
+            if (coverPath) await createClient().storage.from("collection-media").remove([coverPath]);
+          };
+          try {
+            coverPath = await uploadCover(collectionCover.file, `collections/${result.id}`);
+            const coverResult = await updateCollectionAction({
+              id: result.id,
+              name: title,
+              description: fieldValue(description),
+              templateId: templateId || null,
+              visibility: collectionVisibility,
+              coverPath,
+            });
+            if (!coverResult.ok) {
+              await rollbackCollection();
+              setError(coverResult.error ?? "The collection and its cover could not be saved. Please try again.");
+              return;
+            }
+          } catch (coverError) {
+            await rollbackCollection();
+            setError(coverError instanceof Error ? coverError.message : "The collection and its cover could not be saved. Please try again.");
+            return;
+          }
+        }
         router.push(`/collections/${result.id}`);
         router.refresh();
         return;
@@ -201,6 +301,34 @@ export function CreationStudio({
         if (!result.ok || !result.id) {
           setError(result.error ?? "This subcollection could not be created.");
           return;
+        }
+        if (subcollectionCover) {
+          let coverPath: string | null = null;
+          const rollbackSubcollection = async () => {
+            await deleteSubcollectionAction(result.id);
+            if (coverPath) await createClient().storage.from("collection-media").remove([coverPath]);
+          };
+          try {
+            coverPath = await uploadCover(subcollectionCover.file, `collections/${collectionId}/subcollections/${result.id}`);
+            const coverResult = await updateSubcollectionAction({
+              id: result.id,
+              collectionId,
+              name: title,
+              description: fieldValue(description),
+              kind: subcollectionKind,
+              visibility: subcollectionVisibility === "inherit" ? null : subcollectionVisibility,
+              coverPath,
+            });
+            if (!coverResult.ok) {
+              await rollbackSubcollection();
+              setError(coverResult.error ?? "The subcollection and its cover could not be saved. Please try again.");
+              return;
+            }
+          } catch (coverError) {
+            await rollbackSubcollection();
+            setError(coverError instanceof Error ? coverError.message : "The subcollection and its cover could not be saved. Please try again.");
+            return;
+          }
         }
         router.push(`/collections/${collectionId}/subcollections/${result.id}`);
         router.refresh();
@@ -225,20 +353,20 @@ export function CreationStudio({
           uploadedPaths.push(path);
         }
 
-        const numericYear = year ? Number(year) : null;
         const result = await createItemAction({
           collectionId,
-          subcollectionId: subcollectionId || null,
+          subcollectionId,
           title,
           description: fieldValue(description),
-          brand: fieldValue(brand),
-          model: fieldValue(model),
-          year: Number.isFinite(numericYear) ? numericYear : null,
-          condition: fieldValue(condition),
+          brand: null,
+          model: null,
+          year: null,
+          condition: null,
           mood,
           isFavorite,
           visibility: shareToShelf ? "public" : itemVisibility,
           mediaPaths: uploadedPaths,
+          tags: itemTags,
         });
         if (!result.ok) {
           if (uploadedPaths.length) await storage.remove(uploadedPaths);
@@ -262,6 +390,16 @@ export function CreationStudio({
     : mode === "subcollection"
       ? "What belongs together in this part of the story?"
       : "Why does this piece matter? A small detail is enough.";
+
+  const renderPreviewCard = () => {
+    if (mode === "item") {
+      return <ItemPreview title={title} description={description} photo={photos[0]?.previewUrl} selectedCollection={selectedCollection?.name} selectedSubcollection={selectedSubcollection?.name} mood={mood} isFavorite={isFavorite} tags={itemTags} />;
+    }
+    if (mode === "collection") {
+      return <CollectionPreview title={title} description={description} visibility={collectionVisibility} templateName={initialData.templates.find((template) => template.id === templateId)?.name} cover={collectionCover?.previewUrl} />;
+    }
+    return <SubcollectionPreview title={title} description={description} collectionName={selectedCollection?.name} kind={subcollectionKind} cover={subcollectionCover?.previewUrl} />;
+  };
 
   return (
     <main className="create-studio-page" data-mode={mode}>
@@ -334,11 +472,24 @@ export function CreationStudio({
                   </label>
                 )}
               </section>
+            ) : mode === "collection" ? (
+              <CoverPicker
+                target="collection"
+                cover={collectionCover}
+                onChoose={chooseCover}
+                onRemove={removeCover}
+                title="Give the collection a cover"
+                description="A single image sets the tone before anyone opens the story."
+              />
             ) : (
-              <section className={`create-studio-composer-banner create-studio-composer-banner--${mode}`} aria-hidden="true">
-                <div><span>{mode === "collection" ? "A place for the whole story" : "A shelf within the story"}</span><strong>{mode === "collection" ? "Begin with a beautiful blank page." : "Every section can hold its own point of view."}</strong></div>
-                {mode === "collection" ? <Layers3 size={58} /> : <Plus size={58} />}
-              </section>
+              <CoverPicker
+                target="subcollection"
+                cover={subcollectionCover}
+                onChoose={chooseCover}
+                onRemove={removeCover}
+                title="Give this shelf a cover"
+                description="Use an image that makes this chapter instantly recognizable."
+              />
             )}
 
             <section className="create-studio-story-fields">
@@ -386,13 +537,12 @@ export function CreationStudio({
               <section className="create-studio-details create-studio-item-details">
                 <div className="create-studio-section-head"><span className="create-studio-eyebrow">PLACE &amp; PERSONALIZE</span><p>Keep the metadata light. Add only what helps the memory land.</p></div>
                 <CollectionPicker collections={initialData.collections} collectionId={collectionId} onChange={changeCollection} />
-                <label className="create-studio-select-field create-studio-subcollection-picker"><span>Subcollection <small>optional</small></span><select value={subcollectionId} onChange={(event) => setSubcollectionId(event.target.value)} disabled={!selectedCollection?.subcollections.length}><option value="">No shelf yet</option>{selectedCollection?.subcollections.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></label>
-                <div className="create-studio-detail-grid">
-                  <label><span>Brand</span><input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={100} placeholder="Sony" /></label>
-                  <label><span>Model</span><input value={model} onChange={(event) => setModel(event.target.value)} maxLength={120} placeholder="DualShock 4" /></label>
-                  <label><span>Year</span><input value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="2010" /></label>
-                  <label><span>Condition</span><input value={condition} onChange={(event) => setCondition(event.target.value)} maxLength={80} placeholder="Loved" /></label>
-                </div>
+                <label className="create-studio-select-field create-studio-subcollection-picker"><span>Subcollection <small>required</small></span><select required value={subcollectionId} onChange={(event) => setSubcollectionId(event.target.value)} disabled={!selectedCollection?.subcollections.length}><option value="">Choose a subcollection</option>{selectedCollection?.subcollections.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select>{selectedCollection && !selectedCollection.subcollections.length ? <small className="create-studio-empty-picker">This collection has no subcollections yet. Create one before adding an item.</small> : null}</label>
+                <section className="create-studio-tag-editor" aria-labelledby="create-item-tags-label">
+                  <div className="create-studio-tag-editor-head"><span id="create-item-tags-label">Tags <small>optional</small></span><small>Add anything that helps you find or remember it later.</small></div>
+                  {itemTags.length ? <div className="create-studio-tag-list">{itemTags.map((tag) => <span key={tag}>{tag}<button type="button" onClick={() => removeItemTag(tag)} aria-label={`Remove ${tag} tag`}><X size={13} /></button></span>)}</div> : null}
+                  <div className="create-studio-tag-input-row"><input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItemTag(); } }} maxLength={24} placeholder="e.g. Sony, 2010, well loved" /><button type="button" onClick={addItemTag} disabled={!tagDraft.trim()}><Plus size={15} /> Add tag</button></div>
+                </section>
                 <div className="create-studio-personal-flags">
                   <label className="create-studio-select-field"><span>Story mark</span><select value={mood} onChange={(event) => setMood(event.target.value as ItemMood)}><option value="neutral">No mark</option><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favorite</option><option value="regret">Regret</option></select></label>
                   <label className={`create-studio-favorite-toggle ${isFavorite ? "is-selected" : ""}`}><input className="create-studio-visually-hidden" type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={17} fill={isFavorite ? "currentColor" : "none"} /><span><strong>Favourite</strong><small>Keep this one close</small></span></label>
@@ -409,6 +559,7 @@ export function CreationStudio({
 
             <footer className="create-studio-composer-footer">
               <div className="create-studio-save-note"><Sparkles size={15} /><span>{signedIn ? "Saved into your live Klecto catalog" : "Sign in when you are ready to save"}</span></div>
+              <button type="button" className="create-studio-mobile-preview-trigger" onClick={() => setMobilePreviewOpen(true)}><Eye size={16} /> Preview</button>
               <button type="submit" className="create-studio-publish-button" disabled={pending || !canCreate}>
                 {pending ? "Adding it…" : signedIn ? mode === "item" && shareToShelf ? "Share item" : `Create ${modeCopy[mode].label.toLowerCase()}` : "Sign in to create"}
                 <ChevronRight size={18} />
@@ -418,14 +569,47 @@ export function CreationStudio({
 
           <aside className="create-studio-preview" aria-label="Your creation preview">
             <div className="create-studio-preview-head"><span className="create-studio-eyebrow">LIVE PREVIEW</span><span>{mode === "item" && shareToShelf ? "PUBLIC" : "DRAFT"}</span></div>
-            {mode === "item" ? <ItemPreview title={title} description={description} photo={photos[0]?.previewUrl} selectedCollection={selectedCollection?.name} selectedSubcollection={selectedSubcollection?.name} mood={mood} isFavorite={isFavorite} /> : null}
-            {mode === "collection" ? <CollectionPreview title={title} description={description} visibility={collectionVisibility} templateName={initialData.templates.find((template) => template.id === templateId)?.name} /> : null}
-            {mode === "subcollection" ? <SubcollectionPreview title={title} description={description} collectionName={selectedCollection?.name} kind={subcollectionKind} /> : null}
+            {renderPreviewCard()}
             <div className="create-studio-preview-note"><Check size={15} /> No separate post needed. Your {mode} lives with the collection, and public entries are ready to be discovered.</div>
           </aside>
         </div>
+
+        {mobilePreviewOpen ? <div className="create-studio-mobile-preview-backdrop" role="presentation" onClick={() => setMobilePreviewOpen(false)}><section className="create-studio-mobile-preview-sheet" role="dialog" aria-modal="true" aria-label="Live preview" onClick={(event) => event.stopPropagation()}><header><div><span className="create-studio-eyebrow">LIVE PREVIEW</span><strong>{mode === "item" && shareToShelf ? "Public item preview" : `${modeCopy[mode].label} preview`}</strong></div><button type="button" onClick={() => setMobilePreviewOpen(false)} aria-label="Close preview"><X size={18} /></button></header><div className="create-studio-mobile-preview-card">{renderPreviewCard()}</div><p><Check size={15} /> This is how your creation will feel before you publish it.</p></section></div> : null}
       </section>
     </main>
+  );
+}
+
+function CoverPicker({
+  target,
+  cover,
+  onChoose,
+  onRemove,
+  title,
+  description,
+}: {
+  target: "collection" | "subcollection";
+  cover: CoverDraft | null;
+  onChoose: (target: "collection" | "subcollection", fileList: FileList | null) => void;
+  onRemove: (target: "collection" | "subcollection") => void;
+  title: string;
+  description: string;
+}) {
+  const targetLabel = target === "collection" ? "collection" : "subcollection";
+  return (
+    <section className={`create-studio-cover-stage create-studio-cover-stage--${target}`} aria-label={`${targetLabel} cover`}>
+      <div className="create-studio-cover-preview">
+        {cover ? <img src={cover.previewUrl} alt={`${targetLabel} cover preview`} /> : <div className="create-studio-cover-empty"><ImagePlus size={30} /><span>Cover image</span></div>}
+        {cover ? <button type="button" className="create-studio-cover-remove" onClick={() => onRemove(target)} aria-label="Remove selected cover"><X size={16} /></button> : null}
+      </div>
+      <div className="create-studio-cover-copy">
+        <span className="create-studio-eyebrow">COVER IMAGE <small>optional</small></span>
+        <strong>{title}</strong>
+        <p>{description}</p>
+        <label className="create-studio-cover-button"><ImagePlus size={17} /><span>{cover ? "Choose another cover" : "Choose a cover"}</span><input className="create-studio-visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" onChange={(event) => { onChoose(target, event.target.files); event.currentTarget.value = ""; }} /></label>
+        <small>JPG, PNG, WEBP, AVIF, or HEIC · 15 MB max</small>
+      </div>
+    </section>
   );
 }
 
@@ -469,6 +653,7 @@ function ItemPreview({
   selectedSubcollection,
   mood,
   isFavorite,
+  tags,
 }: {
   title: string;
   description: string;
@@ -477,19 +662,20 @@ function ItemPreview({
   selectedSubcollection?: string;
   mood: ItemMood;
   isFavorite: boolean;
+  tags: string[];
 }) {
   return (
     <article className="create-studio-preview-card create-studio-item-preview">
       <div className="create-studio-preview-media">{photo ? <img src={photo} alt="" /> : <ImagePlus size={30} />} {isFavorite ? <span><Star size={14} fill="currentColor" /> Favourite</span> : null}</div>
-      <div className="create-studio-preview-copy"><small>{mood === "neutral" ? "ITEM" : mood}</small><h2>{title || "Your item title"}</h2><p>{description || "A few words will turn an object into a story."}</p><footer>{selectedCollection || "Choose a collection"}{selectedSubcollection ? ` · ${selectedSubcollection}` : ""}</footer></div>
+      <div className="create-studio-preview-copy"><small>{mood === "neutral" ? "ITEM" : mood}</small><h2>{title || "Your item title"}</h2><p>{description || "A few words will turn an object into a story."}</p>{tags.length ? <div className="create-studio-preview-tags">{tags.slice(0, 4).map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<footer>{selectedCollection || "Choose a collection"}{selectedSubcollection ? ` · ${selectedSubcollection}` : ""}</footer></div>
     </article>
   );
 }
 
-function CollectionPreview({ title, description, visibility, templateName }: { title: string; description: string; visibility: Visibility; templateName?: string }) {
-  return <article className="create-studio-preview-card create-studio-collection-preview"><div><Layers3 size={31} /><span>{templateName || "CUSTOM COLLECTION"}</span></div><h2>{title || "Your collection title"}</h2><p>{description || "The things that make up a world, gathered in one place."}</p><footer>{visibilityIcon(visibility)} {visibilityLabel(visibility)}</footer></article>;
+function CollectionPreview({ title, description, visibility, templateName, cover }: { title: string; description: string; visibility: Visibility; templateName?: string; cover?: string }) {
+  return <article className="create-studio-preview-card create-studio-collection-preview">{cover ? <div className="create-studio-preview-cover"><img src={cover} alt="" /></div> : null}<div><Layers3 size={31} /><span>{templateName || "CUSTOM COLLECTION"}</span></div><h2>{title || "Your collection title"}</h2><p>{description || "The things that make up a world, gathered in one place."}</p><footer>{visibilityIcon(visibility)} {visibilityLabel(visibility)}</footer></article>;
 }
 
-function SubcollectionPreview({ title, description, collectionName, kind }: { title: string; description: string; collectionName?: string; kind: SubcollectionKind }) {
-  return <article className="create-studio-preview-card create-studio-subcollection-preview"><div><Plus size={30} /><span>{kind} SHELF</span></div><h2>{title || "Your shelf title"}</h2><p>{description || "A smaller chapter inside the collection."}</p><footer>{collectionName || "Choose a collection"}</footer></article>;
+function SubcollectionPreview({ title, description, collectionName, kind, cover }: { title: string; description: string; collectionName?: string; kind: SubcollectionKind; cover?: string }) {
+  return <article className="create-studio-preview-card create-studio-subcollection-preview">{cover ? <div className="create-studio-preview-cover"><img src={cover} alt="" /></div> : null}<div><Plus size={30} /><span>{kind} SHELF</span></div><h2>{title || "Your shelf title"}</h2><p>{description || "A smaller chapter inside the collection."}</p><footer>{collectionName || "Choose a collection"}</footer></article>;
 }

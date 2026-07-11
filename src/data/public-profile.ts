@@ -107,7 +107,7 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       .eq("user_id", profile.id),
     supabase
       .from("items")
-      .select("id, collection_id, title, description, brand, model, year, condition, mood, is_favorite, created_at, item_media(storage_path, position)")
+      .select("id, collection_id, title, description, brand, model, year, condition, mood, is_favorite, created_at, item_media(storage_path, position), item_tags(tag)")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -154,6 +154,7 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       model: item.model,
       year: item.year,
       condition: item.condition,
+      tags: (item.item_tags ?? []).map((tag) => tag.tag),
       mood: item.mood,
       isFavorite: item.is_favorite,
       imageUrls,

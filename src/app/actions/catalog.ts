@@ -106,8 +106,15 @@ const itemSchema = z.object({
   mediaPaths: z.array(z.string().min(3).max(500)).max(8),
 });
 
+const itemTagSchema = z.string().trim().min(1).max(50).transform((value) => value.toLocaleLowerCase());
+
 const createItemSchema = itemSchema.extend({
   mediaPaths: z.array(z.string().min(3).max(500)).min(1).max(8),
+  tags: z.array(itemTagSchema).max(8).optional().default([]),
+}).superRefine((input, context) => {
+  if (new Set(input.tags).size !== input.tags.length) {
+    context.addIssue({ code: "custom", path: ["tags"], message: "Each tag can only be used once." });
+  }
 });
 
 const appendItemMediaSchema = z.object({

@@ -57,6 +57,7 @@ export type ItemDTO = {
   model: string | null;
   year: number | null;
   condition: string | null;
+  tags: string[];
   mood: ItemMood;
   isFavorite: boolean;
   visibility: Visibility | null;
@@ -114,6 +115,7 @@ export type PublicProfileItemDTO = {
   model: string | null;
   year: number | null;
   condition: string | null;
+  tags: string[];
   mood: ItemMood;
   isFavorite: boolean;
   imageUrls: string[];

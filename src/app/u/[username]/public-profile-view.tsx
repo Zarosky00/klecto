@@ -21,7 +21,7 @@ function numberLabel(value: number) {
 }
 
 function itemMeta(item: PublicProfileItemDTO) {
-  return [item.brand, item.model, item.year, item.condition].filter(Boolean).join(" · ");
+  return item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" · ") : [item.brand, item.model, item.year, item.condition].filter(Boolean).join(" · ");
 }
 
 function ItemCard({ item }: { item: PublicProfileItemDTO }) {

@@ -68,7 +68,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       .order("position"),
     supabase
       .from("items")
-      .select("id, collection_id, subcollection_id, title, description, brand, model, year, condition, mood, is_favorite, visibility, created_at, item_media(storage_path, position)")
+      .select("id, collection_id, subcollection_id, title, description, brand, model, year, condition, mood, is_favorite, visibility, created_at, item_media(storage_path, position), item_tags(tag)")
       .eq("user_id", identity.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -180,6 +180,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       model: item.model,
       year: item.year,
       condition: item.condition,
+      tags: (item.item_tags ?? []).map((tag) => tag.tag),
       mood: item.mood,
       isFavorite: item.is_favorite,
       visibility: item.visibility,
