@@ -292,7 +292,7 @@ export function SubcollectionWorkspace({
       </section>
 
       <section className="subcollection-content-shell">
-        <div className="subcollection-items-heading"><div><span className="eyebrow">THE OBJECTS INSIDE</span><h2>Items in order</h2><p>Swipe through every photo, tap a reaction, or hold an item for more options.</p></div><button className="primary-button" onClick={() => router.push(`/?create=item&collection=${collection.id}&subcollection=${subcollection.id}`)}><Plus size={16} /> Add item</button></div>
+        <div className="subcollection-items-heading"><div><span className="eyebrow">THE OBJECTS INSIDE</span><h2>Items in order</h2><p>Swipe through every photo, tap a reaction, or hold an item for more options.</p></div><button className="primary-button" onClick={() => router.push(`/create?mode=item&collection=${collection.id}&subcollection=${subcollection.id}`)}><Plus size={16} /> Add item</button></div>
         <div className="subcollection-item-toolbar" role="search">
           <label className="subcollection-item-search"><Search size={17} /><input value={itemQuery} onChange={(event) => setItemQuery(event.target.value)} placeholder="Search objects, brands, or memories" aria-label="Search objects in this subcollection" />{itemQuery ? <button type="button" onClick={() => setItemQuery("")} aria-label="Clear object search"><X size={15} /></button> : null}</label>
           <label className="subcollection-item-sort"><span>Sort</span><select value={itemSort} onChange={(event) => setItemSort(event.target.value as typeof itemSort)} aria-label="Sort items"><option value="recent">Recently added</option><option value="name">Name A–Z</option><option value="liked">Most liked</option></select></label>

@@ -44,9 +44,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createCollectionAction, createItemAction } from "@/app/actions/catalog";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CatalogDashboardDTO, CollectionDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
 import {
   collectionCards,
@@ -119,24 +117,9 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [saved, setSaved] = useState<string[]>([]);
   const [wished, setWished] = useState<string[]>(["camera-1"]);
   const [commentItem, setCommentItem] = useState<FeedItem | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createContext, setCreateContext] = useState<{ collectionId?: string; subcollectionId?: string }>({});
   const [mobileMenu, setMobileMenu] = useState(false);
   const [collectorPreview, setCollectorPreview] = useState<CollectorPreview | null>(null);
   const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("create") !== "item") return;
-    const collectionId = params.get("collection") ?? undefined;
-    const subcollectionId = params.get("subcollection") ?? undefined;
-    const frame = window.requestAnimationFrame(() => {
-      setCreateContext({ collectionId, subcollectionId });
-      setCreateOpen(true);
-    });
-    window.history.replaceState({}, "", window.location.pathname);
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
 
   const openFeedCollection = (item: FeedItem) => {
     const collectionName = item.collection.split("/")[0]?.trim() || item.collection;
@@ -174,10 +157,14 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const openCreate = (mode?: "collection" | "item") => {
+    window.location.href = mode ? `/create?mode=${mode}` : "/create";
+  };
+
   return (
     <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 310, damping: 28, mass: 0.72 }}>
     <motion.div className="app-frame" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.52, ease: [0.16, 1, 0.3, 1] }}>
-      <DesktopRail view={view} navigate={navigate} onCreate={() => setCreateOpen(true)} viewer={initialData.viewer} />
+      <DesktopRail view={view} navigate={navigate} onCreate={openCreate} viewer={initialData.viewer} />
 
       <header className="mobile-topbar">
         <button className="icon-button" onClick={() => setMobileMenu(true)} aria-label="Open menu">
@@ -198,7 +185,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
               <nav className="drawer-nav">
                 {navItems.map((item) => <NavButton key={item.id} {...item} active={view === item.id} onClick={() => navigate(item.id)} />)}
               </nav>
-              <button className="primary-button full" onClick={() => { setCreateOpen(true); setMobileMenu(false); }}><Plus size={18} /> Add to Klecto</button>
+              <button className="primary-button full" onClick={() => { setMobileMenu(false); openCreate(); }}><Plus size={18} /> Add to Klecto</button>
             </motion.aside>
           </motion.div>
         )}
@@ -220,12 +207,12 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
                 toggleSave={(id) => toggle(id, saved, setSaved)}
                 toggleWish={(id) => toggle(id, wished, setWished)}
                 onComment={setCommentItem}
-                onCreate={() => setCreateOpen(true)}
+                onCreate={() => openCreate("item")}
                 onOpenCollector={setCollectorPreview}
                 onOpenCollection={openFeedCollection}
               />
             )}
-            {view === "collections" && <CollectionsView onCreate={() => setCreateOpen(true)} data={initialData} />}
+            {view === "collections" && <CollectionsView onCreate={() => openCreate("collection")} data={initialData} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}
             {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} collections={initialData.collections} />}
@@ -239,11 +226,10 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
           const Icon = item.icon;
           return <motion.button key={item.id} className={view === item.id ? "active" : ""} onClick={() => navigate(item.id)} whileTap={{ scale: 0.92 }}><Icon size={21} /><span>{item.label}</span>{item.id === "inbox" && <i>2</i>}</motion.button>;
         })}
-        {view !== "inbox" && <motion.button className="mobile-create" onClick={() => setCreateOpen(true)} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>}
+        {view !== "inbox" && <motion.button className="mobile-create" onClick={() => openCreate()} aria-label="Create" whileTap={{ scale: 0.9, rotate: -8 }}><Plus size={22} /></motion.button>}
       </nav>
 
       {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
-      {createOpen && <CreateModal onClose={() => { setCreateOpen(false); setCreateContext({}); }} data={initialData} initialCollectionId={createContext.collectionId} initialSubcollectionId={createContext.subcollectionId} />}
       {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
       {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
     </motion.div>
@@ -913,128 +899,4 @@ function CommentActionSheet({ comment, onClose, onReply }: { comment: CommentRep
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => window.removeEventListener("keydown", onKeyDown); }, [onClose]);
   const share = () => { if (navigator.clipboard) void navigator.clipboard.writeText(`${comment.name}: ${comment.body}`).catch(() => undefined); onClose(); };
   return <motion.div className="comment-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="comment-action-sheet" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.97 }} transition={{ type: "spring", damping: 25, stiffness: 340 }} onClick={(event) => event.stopPropagation()}><div className="comment-action-summary"><img src={comment.avatar} alt="" /><span><strong>{comment.name}</strong><small>@{comment.handle}</small></span></div><button onClick={onReply}><MessageCircle size={18} /> Reply</button><button onClick={share}><Share2 size={18} /> Share comment</button><button className="danger" onClick={onClose}><Flag size={18} /> Report</button><button className="cancel" onClick={onClose}>Cancel</button></motion.div></motion.div>;
-}
-
-function CreateModal({ onClose, data, initialCollectionId, initialSubcollectionId }: { onClose: () => void; data: CatalogDashboardDTO; initialCollectionId?: string; initialSubcollectionId?: string }) {
-  const [type, setType] = useState<"Item" | "Collection" | "Post">("Item");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<Visibility>("public");
-  const [templateId, setTemplateId] = useState("");
-  const requestedCollection = data.collections.find((collection) => collection.id === initialCollectionId);
-  const [collectionId, setCollectionId] = useState(requestedCollection?.id ?? data.collections[0]?.id ?? "");
-  const [subcollectionId, setSubcollectionId] = useState(() => requestedCollection?.subcollections.some((entry) => entry.id === initialSubcollectionId) ? initialSubcollectionId ?? "" : "");
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-  const [year, setYear] = useState("");
-  const [condition, setCondition] = useState("");
-  const [mood, setMood] = useState<"grail" | "memory" | "favorite" | "regret" | "neutral">("neutral");
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
-
-  const selectedCollection = data.collections.find((collection) => collection.id === collectionId);
-
-  const submit = () => {
-    const viewer = data.viewer;
-    if (!viewer) {
-      window.location.href = "/login";
-      return;
-    }
-    setError("");
-
-    if (type === "Post") {
-      setError("Live posts arrive in the next social-data slice. Items and collections are ready now.");
-      return;
-    }
-
-    startTransition(async () => {
-      if (type === "Collection") {
-        const result = await createCollectionAction({
-          name: title,
-          description: description.trim() || null,
-          templateId: templateId || null,
-          visibility,
-        });
-        if (!result.ok) return setError(result.error ?? "Could not create the collection.");
-        window.location.reload();
-        return;
-      }
-
-      if (!collectionId) return setError("Create or choose a collection first.");
-      if (files.length === 0) return setError("Add at least one photo of the item.");
-      if (files.length > 8) return setError("Choose no more than eight photos.");
-
-      const acceptedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/heic"]);
-      const invalidFile = files.find((file) => !acceptedTypes.has(file.type) || file.size > 15 * 1024 * 1024);
-      if (invalidFile) return setError(`${invalidFile.name} is not a supported image under 15 MB.`);
-
-      const supabase = createClient();
-      const uploadedPaths: string[] = [];
-      for (const file of files) {
-        const extension = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-        const path = `${viewer.id}/items/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage
-          .from("collection-media")
-          .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
-        if (uploadError) {
-          if (uploadedPaths.length) await supabase.storage.from("collection-media").remove(uploadedPaths);
-          return setError(`Upload failed for ${file.name}. Please try again.`);
-        }
-        uploadedPaths.push(path);
-      }
-
-      const numericYear = year ? Number(year) : null;
-      const result = await createItemAction({
-        collectionId,
-        subcollectionId: subcollectionId || null,
-        title,
-        description: description.trim() || null,
-        brand: brand.trim() || null,
-        model: model.trim() || null,
-        year: Number.isFinite(numericYear) ? numericYear : null,
-        condition: condition.trim() || null,
-        mood,
-        isFavorite,
-        visibility,
-        mediaPaths: uploadedPaths,
-      });
-      if (!result.ok) {
-        await supabase.storage.from("collection-media").remove(uploadedPaths);
-        return setError(result.error ?? "Could not create the item.");
-      }
-      window.location.reload();
-    });
-  };
-  return (
-    <motion.div className="modal-backdrop centered" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.section className="create-modal" initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} onClick={(event) => event.stopPropagation()}>
-        <header><div><span className="eyebrow">ADD TO YOUR WORLD</span><h2>Create something</h2></div><button className="icon-button" onClick={onClose}><X size={20} /></button></header>
-        <div className="create-types">{(["Item", "Collection", "Post"] as const).map((entry) => <button key={entry} className={type === entry ? "active" : ""} onClick={() => { setType(entry); setError(""); }}>{entry === "Item" ? <ImagePlus /> : entry === "Collection" ? <Layers3 /> : <Repeat2 />}<span><strong>{entry}</strong><small>{entry === "Item" ? "Catalog one thing" : entry === "Collection" ? "Start a new shelf" : "Share a thought"}</small></span>{type === entry && <Check size={17} />}</button>)}</div>
-        <div className="form-field"><label>{type} title</label><input autoFocus placeholder={type === "Item" ? "e.g. Jordan 1 High ‘85" : `Name your ${type.toLowerCase()}`} value={title} onChange={(event) => setTitle(event.target.value)} /></div>
-        {type !== "Post" && <div className="form-field"><label>Description</label><textarea placeholder="What makes this worth keeping?" value={description} onChange={(event) => setDescription(event.target.value)} /></div>}
-        {type === "Collection" && <>
-          <div className="two-fields">
-            <div className="form-field"><label>Starting template</label><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}><option value="">Custom collection</option>{data.templates.map((template) => <option value={template.id} key={template.id}>{template.name}</option>)}</select></div>
-            <div className="form-field"><label>Who can see it</label><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></div>
-          </div>
-        </>}
-        {type === "Item" && <>
-          <label className="upload-zone"><ImagePlus size={24} /><strong>{files.length ? `${files.length} photo${files.length === 1 ? "" : "s"} selected` : "Choose item photos"}</strong><span>Up to 8 images · JPG, PNG, WEBP, AVIF or HEIC · 15 MB each</span><span className="secondary-button">Browse photos</span><input className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
-          <div className="two-fields">
-            <div className="form-field"><label>Collection</label><select value={collectionId} onChange={(event) => { setCollectionId(event.target.value); setSubcollectionId(""); }}><option value="">Choose a collection</option>{data.collections.map((collection) => <option value={collection.id} key={collection.id}>{collection.name}</option>)}</select></div>
-            <div className="form-field"><label>Subcollection</label><select value={subcollectionId} onChange={(event) => setSubcollectionId(event.target.value)} disabled={!selectedCollection?.subcollections.length}><option value="">None</option>{selectedCollection?.subcollections.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></div>
-          </div>
-          <div className="two-fields"><div className="form-field"><label>Brand</label><input value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="Nike" /></div><div className="form-field"><label>Model</label><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Air Jordan 1" /></div></div>
-          <div className="two-fields"><div className="form-field"><label>Year</label><input value={year} onChange={(event) => setYear(event.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="2021" /></div><div className="form-field"><label>Condition</label><input value={condition} onChange={(event) => setCondition(event.target.value)} placeholder="Deadstock" /></div></div>
-          <div className="two-fields"><div className="form-field"><label>Story mark</label><select value={mood} onChange={(event) => setMood(event.target.value as typeof mood)}><option value="neutral">No mark</option><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favorite</option><option value="regret">Regret</option></select></div><div className="form-field"><label>Visibility</label><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></div></div>
-          <label className="check-field"><input type="checkbox" checked={isFavorite} onChange={(event) => setIsFavorite(event.target.checked)} /><Star size={16} /> Pin this as a favorite item</label>
-        </>}
-        {type === "Post" && <div className="create-coming-soon"><Repeat2 size={20} /><strong>Social posting is next.</strong><p>The current live slice focuses on building the catalog that posts and wishlists will reference.</p></div>}
-        {error && <div className="create-error" role="alert">{error}</div>}
-        <footer><span>{data.viewer ? "Saved to your live catalog" : "Sign in to publish"}</span><div className="progress"><i /><i className={pending ? "active" : ""} /></div><button className="primary-button" disabled={!title.trim() || pending} onClick={submit}>{pending ? "Publishing…" : data.viewer ? "Publish" : "Continue to sign in"}<ChevronRight size={17} /></button></footer>
-      </motion.section>
-    </motion.div>
-  );
 }

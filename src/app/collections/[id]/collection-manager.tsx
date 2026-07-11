@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import {
   createCollectionPostAction,
-  createSubcollectionAction,
   deleteCollectionAction,
   deleteSubcollectionAction,
   recordCollectionShareAction,
@@ -89,13 +88,8 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   const [visibility, setVisibility] = useState<Visibility>(collection.visibility);
   const [coverPath, setCoverPath] = useState<string | null>(collection.coverPath);
   const [coverUrl, setCoverUrl] = useState<string | null>(collection.coverUrl);
-  const [subName, setSubName] = useState("");
-  const [subDescription, setSubDescription] = useState("");
-  const [subKind, setSubKind] = useState<"brand" | "series" | "era" | "custom">("brand");
-  const [subVisibility, setSubVisibility] = useState<Visibility | "inherit">("inherit");
   const [showEditor, setShowEditor] = useState(false);
   const [showPostComposer, setShowPostComposer] = useState(false);
-  const [showAddSubcollection, setShowAddSubcollection] = useState(false);
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const [selectedSubcollection, setSelectedSubcollection] = useState<SubcollectionDTO | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
@@ -189,24 +183,6 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
       }
       setNotice({ type: "success", text: "Collection cover updated." });
       window.setTimeout(() => window.location.reload(), 350);
-    });
-  };
-
-  const createSubcollection = () => {
-    setNotice(null);
-    startTransition(async () => {
-      const result = await createSubcollectionAction({
-        collectionId: collection.id,
-        name: subName,
-        description: subDescription.trim() || null,
-        kind: subKind,
-        visibility: subVisibility === "inherit" ? null : subVisibility,
-      });
-      if (!result.ok || !result.id) {
-        setNotice({ type: "error", text: result.error ?? "The subcollection could not be created." });
-        return;
-      }
-      window.location.href = `/collections/${collection.id}/subcollections/${result.id}`;
     });
   };
 
@@ -373,7 +349,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
         <section className="studio-route-section collection-catalog">
           <div className="collection-catalog-head collection-catalog-head--solo">
             <div><span className="eyebrow">THE SHELVES</span><h2>Browse the collection</h2><p>Open a section when you want the full story, or create the next shelf here.</p></div>
-            <div className="collection-catalog-actions collection-catalog-actions--solo"><button className="primary-button collection-catalog-create" onClick={() => setShowAddSubcollection((current) => !current)}><Plus size={16} /> New section</button></div>
+            <div className="collection-catalog-actions collection-catalog-actions--solo"><button className="primary-button collection-catalog-create" onClick={() => { window.location.href = `/create?mode=subcollection&collection=${collection.id}`; }}><Plus size={16} /> New section</button></div>
           </div>
 
           <div className="collection-catalog-toolbar">
@@ -398,12 +374,6 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
             })}
             {visibleSubcollections.length === 0 ? <div className="studio-empty subcollection-empty"><Layers3 size={25} /><strong>No sections match that view.</strong><p>Try another search or clear your filters to browse every part of this collection.</p></div> : null}
           </div>
-
-          {showAddSubcollection ? <section className="subcollection-create-card">
-            <div><span className="eyebrow">ADD A SUBCOLLECTION</span><h3>Organize the next layer.</h3></div>
-            <div className="subcollection-create"><input value={subName} onChange={(event) => setSubName(event.target.value)} placeholder="e.g. Nike" maxLength={80} /><select value={subKind} onChange={(event) => setSubKind(event.target.value as typeof subKind)}><option value="brand">Brand</option><option value="series">Series</option><option value="era">Era</option><option value="custom">Custom</option></select><select value={subVisibility} onChange={(event) => setSubVisibility(event.target.value as typeof subVisibility)}><option value="inherit">Inherit privacy</option><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select><button className="primary-button" disabled={pending || !subName.trim()} onClick={createSubcollection}><Plus size={16} /> Create</button></div>
-            <textarea className="subcollection-note" value={subDescription} onChange={(event) => setSubDescription(event.target.value)} placeholder="Optional description" maxLength={600} />
-          </section> : null}
         </section>
 
         {showEditor ? (
