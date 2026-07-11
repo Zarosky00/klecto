@@ -1,75 +1,47 @@
-.discovery { display: grid; gap: 18px; padding-bottom: 58px; }
-.topbar { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 8px 0 5px; }
-.eyebrow, .sourceLine, .sheet header span, .quoteLabel { color: #728054; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
-.topbar h1 { margin: 7px 0 0; color: #222b1d; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(38px, 5.3vw, 62px); font-weight: 500; letter-spacing: -.065em; line-height: .88; }
-.topbarCopy { display: flex; max-width: 235px; align-items: center; gap: 9px; color: #68705d; font-size: 12px; line-height: 1.45; }
-.topbarCopy svg { color: #c3ff3c; fill: #29311e; flex: 0 0 auto; }
-.filterRow { display: flex; gap: 7px; overflow-x: auto; padding: 5px 1px 3px; scrollbar-width: none; }
-.filterRow::-webkit-scrollbar { display: none; }
-.filterRow button { border: 1px solid #dfe3d3; background: #fffefa; color: #67705d; border-radius: 999px; padding: 9px 14px; white-space: nowrap; font-size: 12px; font-weight: 700; transition: .2s ease; }
-.filterRow button:hover { border-color: #aab984; color: #26311b; }
-.filterRow .filterActive { background: #20271b; border-color: #20271b; color: #fff; box-shadow: 0 8px 18px rgba(32, 39, 27, .16); }
-.demoNote { display: flex; align-items: center; gap: 8px; border: 1px solid #dceaa8; background: linear-gradient(100deg, #f7fce7, #fbfdf5); color: #58653d; border-radius: 15px; padding: 11px 13px; font-size: 12px; }
-.demoNote svg { color: #6c8731; }
-.feed { display: grid; gap: 16px; }
-.card { overflow: hidden; border: 1px solid #e1e3d9; background: #fffefa; border-radius: 24px; box-shadow: 0 12px 34px rgba(42, 43, 32, .07); }
-.cardHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 12px; }
-.author { display: grid; grid-template-columns: 32px auto; column-gap: 9px; align-items: center; min-width: 0; color: inherit; text-decoration: none; }
-.author img, .author > span { grid-row: span 2; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #39452a; color: #fff; display: grid; place-items: center; font-size: 13px; }
-.author b { display: flex; align-items: center; gap: 4px; color: #2c3325; font-size: 13px; line-height: 1.1; }
-.author b i { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: #6c8638; color: white; font-style: normal; font-size: 8px; }
-.author small { color: #899080; font-size: 11px; }
-.kindPill, .coverKind, .photoCount { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .05em; }
-.kindPill { border: 1px solid #e3e6d9; color: #647254; padding: 6px 8px; text-transform: uppercase; }
-.catalogueCard { display: grid; grid-template-columns: minmax(172px, 38%) 1fr; color: inherit; text-decoration: none; border-top: 1px solid #eeefe9; border-bottom: 1px solid #eeefe9; transition: background .2s ease; }
-.catalogueCard:hover { background: #fbfcf4; }
-.cover { position: relative; aspect-ratio: 1.05 / 1; overflow: hidden; background: linear-gradient(145deg, #d9e3cc, #aabb88); }
-.cover > img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .5s cubic-bezier(.16,1,.3,1); }
-.catalogueCard:hover .cover > img { transform: scale(1.045); }
-.coverFallback { width: 100%; height: 100%; color: #f8fbed; display: grid; place-items: center; }
-.coverKind { position: absolute; left: 10px; top: 10px; background: rgba(27, 36, 23, .84); color: white; padding: 6px 8px; text-transform: uppercase; }
-.photoCount { position: absolute; right: 10px; bottom: 10px; background: rgba(255,255,252,.94); color: #35412a; padding: 6px 8px; }
-.catalogueCopy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; padding: 18px 18px 16px; }
-.sourceLine { color: #718155; line-height: 1.2; }
-.catalogueCopy h2 { margin: 7px 0 5px; color: #293124; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(23px, 3.4vw, 32px); font-weight: 500; letter-spacing: -.04em; line-height: .98; }
-.catalogueCopy p { display: -webkit-box; overflow: hidden; margin: 0; color: #687066; font-size: 13px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.explore { display: inline-flex; align-items: center; gap: 3px; margin-top: 13px; color: #526e24; font-size: 12px; font-weight: 800; }
-.actions { display: flex; align-items: center; gap: 3px; padding: 8px 10px 9px; }
-.actions button, .openAction { display: inline-flex; min-height: 38px; align-items: center; gap: 6px; border: 0; background: transparent; color: #748069; border-radius: 11px; padding: 7px 10px; font-size: 12px; font-weight: 700; text-decoration: none; transition: background .18s ease, color .18s ease; }
-.actions button:hover:not(:disabled), .openAction:hover { background: #f0f3e8; color: #25311b; }
-.actions button:disabled { opacity: .58; cursor: wait; }
-.actions .liked { color: #be5260; }
-.actions .wishlistAction { margin-left: auto; color: #617636; }
-.openAction { padding-right: 5px; }
-.wishlist { border-color: #d7e4b3; background: linear-gradient(135deg, #fcfff5, #f4fae5); }
-.wishlistLabel { display: flex; align-items: center; gap: 7px; padding: 13px 16px 2px; color: #607632; font-size: 12px; font-weight: 800; }
-.quote { margin: 10px 16px 14px; color: #2f3826; font-family: Georgia, 'Times New Roman', serif; font-size: 22px; line-height: 1.16; letter-spacing: -.025em; }
-.wishlist .catalogueCard { margin: 0 11px; border: 1px solid #dce5c5; border-radius: 16px; overflow: hidden; background: rgba(255,255,255,.55); }
-.wishlist .cover { aspect-ratio: 1 / 1; }
-.wishlist .catalogueCopy { padding: 14px; }
-.wishlist .catalogueCopy h2 { font-size: 24px; }
-.wishlistAuthor { display: flex; justify-content: space-between; gap: 10px; padding: 10px 16px 3px; color: #7b866f; font-size: 11px; }
-.empty { min-height: 185px; display: grid; place-content: center; justify-items: center; gap: 6px; border: 1px dashed #cfd8bc; border-radius: 20px; background: #fbfcf6; color: #6f7965; text-align: center; }
-.empty strong { color: #35402b; }
-.sheetBackdrop { position: fixed; z-index: 90; inset: 0; display: flex; align-items: end; justify-content: center; padding: 18px; background: rgba(25, 30, 20, .48); backdrop-filter: blur(8px); }
-.sheet { width: min(570px, 100%); border: 1px solid #e4ead5; border-radius: 26px; background: #fffefa; box-shadow: 0 -16px 52px rgba(18,26,14,.25); overflow: hidden; }
-.sheetHandle { width: 38px; height: 4px; border-radius: 99px; margin: 11px auto 0; background: #d9decb; }
+.discovery { padding-bottom: 44px; }
+.demoNote { display: flex; align-items: center; gap: 8px; margin: 13px 16px 0; border: 1px solid #dceaa8; border-radius: 13px; background: #f8fce9; color: #59663f; padding: 10px 12px; font-size: 12px; }
+.demoNote svg { color: #718b35; }
+.legacyCard { min-width: 0; }
+.wishlist { border-color: #d6e5a9 !important; background: linear-gradient(145deg, #fffefa, #f7fce8) !important; }
+.wishlistLabel { display: flex; align-items: center; gap: 7px; color: #627c31; padding: 3px 0 11px; font-size: 12px; font-weight: 750; }
+.quote { margin: 13px 0 16px; color: #2f3826; font-size: 15px; font-weight: 620; line-height: 1.5; }
+.collectionLabel { width: 100%; border: 0; background: transparent; cursor: pointer; padding: 0; text-align: left; text-decoration: none; }
+.collectionLabel > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collectionLabel b { margin-left: auto; border: 1px solid #dfe5cf; border-radius: 999px; color: #758265; padding: 4px 7px; font-size: 9px; letter-spacing: .04em; }
+.media { display: block; color: inherit; text-decoration: none; }
+.mediaFallback { display: grid; width: 100%; height: 100%; place-items: center; color: #f9fdf1; background: linear-gradient(145deg, #a8bb7b, #657a42); }
+.kindTag { background: rgb(255 255 255 / 90%) !important; color: #526a2a; }
+.avatarFallback { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: #354126; color: #fff; font-weight: 800; }
+.openAction { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: #64793a; text-decoration: none; font-size: 11px; font-weight: 800; }
+.empty { display: grid; min-height: 190px; place-content: center; justify-items: center; gap: 6px; margin: 16px; border: 1px dashed #cdd8b6; border-radius: 18px; background: #fcfdf8; color: #727c68; font-size: 13px; }
+.empty strong { color: #354029; }
+
+.sheetBackdrop { position: fixed; z-index: 90; inset: 0; display: flex; align-items: end; justify-content: center; padding: 16px; background: rgb(23 28 18 / 52%); backdrop-filter: blur(8px); }
+.sheet { width: min(570px, 100%); overflow: hidden; border: 1px solid #e1e7d0; border-radius: 24px; background: #fffefa; box-shadow: 0 -18px 52px rgb(20 27 15 / 28%); }
+.sheetHandle { width: 38px; height: 4px; margin: 11px auto 0; border-radius: 99px; background: #d9decb; }
 .sheet header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 14px 18px 12px; }
-.sheet header h3 { margin: 5px 0 0; color: #27301f; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 500; letter-spacing: -.04em; line-height: 1; }
-.sheet header button { display: grid; place-items: center; width: 37px; height: 37px; border: 1px solid #e2e7d6; border-radius: 12px; background: #f9fbf3; color: #53643a; }
-.sheet textarea { box-sizing: border-box; width: calc(100% - 36px); min-height: 118px; margin: 0 18px; resize: vertical; border: 1px solid #dce4cd; border-radius: 15px; background: #fbfcf7; color: #27301f; outline: none; padding: 13px; font: inherit; font-size: 14px; line-height: 1.5; }
-.sheet textarea:focus { border-color: #a6bb6a; box-shadow: 0 0 0 3px rgba(178, 207, 91, .16); }
+.sheet header span, .quoteLabel { color: #718054; font-size: 10px; font-weight: 800; letter-spacing: .15em; }
+.sheet h3 { margin: 5px 0 0; color: #2a3222; font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 500; letter-spacing: -.04em; line-height: 1; }
+.sheet header button { display: grid; width: 37px; height: 37px; place-items: center; border: 1px solid #e2e7d6; border-radius: 12px; background: #f9fbf3; color: #53643a; }
+.sheet textarea { box-sizing: border-box; width: calc(100% - 36px); min-height: 116px; margin: 0 18px; resize: vertical; border: 1px solid #dce4cd; border-radius: 15px; outline: none; background: #fbfcf7; color: #27301f; padding: 13px; font: inherit; font-size: 14px; line-height: 1.5; }
+.sheet textarea:focus { border-color: #a6bb6a; box-shadow: 0 0 0 3px rgb(178 207 91 / 16%); }
 .sheet footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px 16px; }
 .sheet footer > span { color: #87917b; font-size: 11px; }
-.sheet footer button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; border: 0; border-radius: 12px; background: #22291c; color: white; padding: 0 14px; font-weight: 800; }
+.sheet footer button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 12px; background: #22291c; color: white; padding: 0 14px; font-weight: 800; }
 .sheet footer button:disabled { opacity: .5; }
-.quotedTarget { display: flex; gap: 10px; align-items: flex-start; margin: 0 18px 13px; border: 1px solid #dbe8b7; border-radius: 14px; background: #f5fae7; color: #617b31; padding: 11px; }
+.quotedTarget { display: flex; align-items: flex-start; gap: 10px; margin: 0 18px 13px; border: 1px solid #dbe8b7; border-radius: 14px; background: #f5fae7; color: #617b31; padding: 11px; }
 .quotedTarget div { display: grid; gap: 3px; }
 .quotedTarget b { color: #445728; font-size: 11px; }
 .quotedTarget span { color: #6d7861; font-size: 12px; line-height: 1.35; }
 .quoteLabel { display: grid; gap: 7px; margin: 0 18px; }
 .quoteLabel em { color: #9ba590; font-style: normal; font-weight: 600; letter-spacing: 0; }
 .quoteLabel textarea { width: 100%; min-height: 100px; margin: 0; }
-.notice { position: fixed; z-index: 100; left: 50%; bottom: 25px; transform: translateX(-50%); max-width: calc(100vw - 34px); border: 1px solid #d9e7af; border-radius: 999px; background: #26321b; box-shadow: 0 10px 28px rgba(19,25,15,.24); color: #f6ffdb; padding: 11px 16px; font-size: 12px; font-weight: 700; text-align: center; }
-@media (max-width: 640px) { .discovery { gap: 15px; } .topbar { align-items: start; flex-direction: column; gap: 12px; padding-top: 2px; } .topbarCopy { max-width: none; } .topbar h1 { font-size: 43px; } .card { border-radius: 20px; } .catalogueCard { grid-template-columns: 40% 1fr; } .catalogueCopy { padding: 14px 13px; } .catalogueCopy h2 { font-size: 25px; } .catalogueCopy p { font-size: 12px; -webkit-line-clamp: 2; } .explore { margin-top: 8px; font-size: 11px; } .kindPill { display: none; } .wishlist .catalogueCard { grid-template-columns: 38% 1fr; } .quote { font-size: 20px; } .actions { padding: 7px; } .actions button { padding: 7px 8px; } .actions .wishlistAction span { display: none; } .sheetBackdrop { padding: 0; } .sheet { border-radius: 25px 25px 0 0; } }
-@media (min-width: 1000px) { .feed { grid-template-columns: repeat(2, minmax(0, 1fr)); } .card:first-child { grid-column: span 2; } .card:first-child .catalogueCard { grid-template-columns: minmax(250px, 43%) 1fr; } .card:first-child .cover { aspect-ratio: 1.42 / 1; } .card:first-child .catalogueCopy { padding: 27px; } .card:first-child .catalogueCopy h2 { font-size: 44px; } .wishlist { grid-column: span 1 !important; } }
+.notice { position: fixed; z-index: 100; left: 50%; bottom: 25px; transform: translateX(-50%); max-width: calc(100vw - 34px); border: 1px solid #d9e7af; border-radius: 999px; background: #26321b; box-shadow: 0 10px 28px rgb(19 25 15 / 24%); color: #f6ffdb; padding: 11px 16px; font-size: 12px; font-weight: 700; text-align: center; }
+@media (max-width: 640px) {
+  .demoNote { margin: 12px 12px 0; }
+  .wishlistLabel { padding-bottom: 9px; }
+  .collectionLabel b { display: none; }
+  .quote { font-size: 14px; }
+  .sheetBackdrop { padding: 0; }
+  .sheet { border-radius: 24px 24px 0 0; }
+}
