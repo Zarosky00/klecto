@@ -339,12 +339,19 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
   const images = entry.imageUrls.length ? entry.imageUrls : [];
   const [activeIndex, setActiveIndex] = useState(0);
   const [immersive, setImmersive] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistance = useRef<number | null>(null);
+  const pinchStartZoom = useRef(1);
+  const didPinch = useRef(false);
+  const lastImageTap = useRef(0);
   const goTo = useCallback((index: number) => {
     if (!images.length || !scrollRef.current) return;
     const next = (index + images.length) % images.length;
     scrollRef.current.scrollTo({ left: scrollRef.current.clientWidth * next, behavior: "smooth" });
     setActiveIndex(next);
+    setZoom(1);
   }, [images.length]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -366,15 +373,44 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
       document.documentElement.style.overflow = rootOverflow;
     };
   }, []);
+  const updatePointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size !== 2) return;
+    const [first, second] = [...pointers.current.values()];
+    const distance = Math.hypot(first.x - second.x, first.y - second.y);
+    if (!pinchDistance.current) {
+      pinchDistance.current = distance;
+      pinchStartZoom.current = zoom;
+      return;
+    }
+    didPinch.current = true;
+    setZoom(Math.min(3, Math.max(1, pinchStartZoom.current * (distance / pinchDistance.current))));
+  };
+  const clearPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size < 2) pinchDistance.current = null;
+  };
+  const toggleFullscreen = () => {
+    if (didPinch.current) {
+      didPinch.current = false;
+      return;
+    }
+    const now = Date.now();
+    if (now - lastImageTap.current < 320) return;
+    lastImageTap.current = now;
+    setImmersive((active) => !active);
+  };
   return createPortal(
-    <motion.div className={styles.mediaBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+    <motion.div className={`${styles.mediaBackdrop} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section className={`${styles.mediaViewer} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
         <header><div><span>PHOTOS</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
-        <div ref={scrollRef} className={styles.mediaTrack} onScroll={(event) => {
+        <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
-          setActiveIndex(Math.round(event.currentTarget.scrollLeft / width));
+          const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
+          if (activeIndex !== nextIndex) setZoom(1);
+          setActiveIndex(nextIndex);
         }}>
-          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={() => setImmersive((active) => !active)} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
+          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={toggleFullscreen} style={index === activeIndex ? { transform: `scale(${zoom})` } : undefined} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
         </div>
         <footer>
           <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
