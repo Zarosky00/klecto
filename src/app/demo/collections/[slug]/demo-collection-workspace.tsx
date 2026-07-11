@@ -2,7 +2,7 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -117,6 +117,51 @@ function useLongPress(onLongPress: () => void) {
       return value;
     },
   };
+}
+
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+
+    const { body, documentElement } = document;
+    const scrollY = window.scrollY;
+    const previousStyles = {
+      overflow: body.style.overflow,
+      paddingRight: body.style.paddingRight,
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      htmlOverflow: documentElement.style.overflow,
+      htmlOverscrollBehavior: documentElement.style.overscrollBehavior,
+    };
+    const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
+    const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    documentElement.style.overflow = "hidden";
+    documentElement.style.overscrollBehavior = "none";
+    if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
+
+    return () => {
+      body.style.overflow = previousStyles.overflow;
+      body.style.paddingRight = previousStyles.paddingRight;
+      body.style.position = previousStyles.position;
+      body.style.top = previousStyles.top;
+      body.style.left = previousStyles.left;
+      body.style.right = previousStyles.right;
+      body.style.width = previousStyles.width;
+      documentElement.style.overflow = previousStyles.htmlOverflow;
+      documentElement.style.overscrollBehavior = previousStyles.htmlOverscrollBehavior;
+      window.scrollTo(0, scrollY);
+    };
+  }, [locked]);
 }
 
 async function shareDemoTarget(title: string, text: string, url: string) {
@@ -615,6 +660,7 @@ function DemoCatalogItemDetailSheet({
   onDelete: () => void;
   onOpenMedia: (images: string[], initialIndex: number) => void;
 }) {
+  useBodyScrollLock(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
@@ -767,7 +813,7 @@ function DemoCatalogItemDetailSheet({
               <p>Make changes without leaving this item. Everything remains local to the demo.</p>
             </div>
             <div className="catalog-item-inline-grid">
-              <label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} autoFocus /></label>
+              <label><span>Title</span><input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={140} /></label>
               <label><span>Brand</span><input value={brand} onChange={(event) => setBrand(event.target.value)} maxLength={100} /></label>
               <label><span>Details</span><input value={details} onChange={(event) => setDetails(event.target.value)} maxLength={160} placeholder="Year · condition · memory" /></label>
               <label><span>Mood</span><select value={mood} onChange={(event) => setMood(event.target.value as DemoItem["mood"])}><option value="grail">Grail</option><option value="memory">Memory</option><option value="favorite">Favourite</option><option value="regret">Regret</option><option value="neutral">Neutral</option></select></label>

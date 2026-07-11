@@ -1016,3 +1016,12 @@ body {
 @media (max-width: 640px) {
   .catalog-item-inline-heading { align-items: flex-start; flex-direction: column; gap: 4px; }.catalog-item-inline-heading p { max-width: none; text-align: left; }.catalog-item-inline-media-copy { align-items: flex-start; flex-direction: column; gap: 3px; }.catalog-item-inline-actions > button, .catalog-delete-actions > button { flex: 1; }.catalog-item-detail-actions--editing { padding: 11px 16px calc(12px + env(safe-area-inset-bottom)); }
 }
+
+/* Editing is its own contained workspace: the gallery never crops the object and only the form scrolls. */
+.catalog-item-detail-sheet--editing { grid-template-rows: auto clamp(168px, 28dvh, 245px) minmax(0, 1fr) auto; }
+.catalog-item-detail-sheet--editing .catalog-item-detail-gallery { min-height: 0; height: auto; background: #f4f6ef; }
+.catalog-item-detail-sheet--editing .catalog-item-detail-gallery-slide img { object-fit: cover; object-position: center; }
+.catalog-item-detail-sheet--editing .catalog-item-inline-editor { min-height: 0; overscroll-behavior-y: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+@media (max-width: 640px) {
+  .catalog-item-detail-sheet--editing { grid-template-rows: auto clamp(142px, 22dvh, 182px) minmax(0, 1fr) auto; }
+}
