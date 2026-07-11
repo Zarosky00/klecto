@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   createCatalogCommentAction,
   createWishlistPostAction,
@@ -337,6 +338,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
 function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose: () => void }) {
   const images = entry.imageUrls.length ? entry.imageUrls : [];
   const [activeIndex, setActiveIndex] = useState(0);
+  const [immersive, setImmersive] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const goTo = useCallback((index: number) => {
     if (!images.length || !scrollRef.current) return;
@@ -354,15 +356,25 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
     return () => window.removeEventListener("keydown", onKeyDown);
   // activeIndex is intentionally part of the shortcut state.
   }, [activeIndex, goTo, onClose]);
-  return (
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const rootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = rootOverflow;
+    };
+  }, []);
+  return createPortal(
     <motion.div className={styles.mediaBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section className={styles.mediaViewer} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
+      <motion.section className={`${styles.mediaViewer} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
         <header><div><span>PHOTOS</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
         <div ref={scrollRef} className={styles.mediaTrack} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
           setActiveIndex(Math.round(event.currentTarget.scrollLeft / width));
         }}>
-          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
+          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={() => setImmersive((active) => !active)} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
         </div>
         <footer>
           <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
@@ -370,7 +382,8 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
           <span>Swipe to browse</span>
         </footer>
       </motion.section>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
