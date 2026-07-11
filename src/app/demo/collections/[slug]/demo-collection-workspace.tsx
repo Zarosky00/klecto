@@ -280,10 +280,10 @@ function DemoCollectionDashboardCurated({ collection }: { collection: DemoCollec
 }
 
 function DemoSubcollectionCard({ collection, subcollection, index, visibility, onOpenMenu }: { collection: DemoCollection; subcollection: DemoSubcollection; index: number; visibility: Visibility; onOpenMenu: () => void }) {
-  const press = useLongPress(onOpenMenu);
+  const { preventClickAfterLongPress, ...pressHandlers } = useLongPress(onOpenMenu);
   return (
-    <motion.article className="subcollection-route-card demo-subcollection-card curator-subcollection-card" {...press} onContextMenu={(event) => event.preventDefault()} whileTap={{ scale: 0.992 }}>
-      <Link href={`/demo/collections/${collection.slug}/subcollections/${subcollection.id}`} className="subcollection-route-link" onClick={(event) => { if (press.preventClickAfterLongPress()) event.preventDefault(); }}>
+    <motion.article className="subcollection-route-card demo-subcollection-card curator-subcollection-card" {...pressHandlers} onContextMenu={(event) => event.preventDefault()} whileTap={{ scale: 0.992 }}>
+      <Link href={`/demo/collections/${collection.slug}/subcollections/${subcollection.id}`} className="subcollection-route-link" onClick={(event) => { if (preventClickAfterLongPress()) event.preventDefault(); }}>
         <div className="subcollection-route-image">{subcollection.coverUrl ? <img src={subcollection.coverUrl} alt="" /> : <Layers3 size={23} />}<span>{String(index + 1).padStart(2, "0")}</span></div>
         <div><small>{subcollection.kind} · {subcollection.visibility ? visibilityLabel(subcollection.visibility) : `inherits ${visibilityLabel(visibility)}`}</small><h3>{subcollection.name}</h3><p>{subcollection.description}</p><strong>{subcollection.items.length} {subcollection.items.length === 1 ? "item" : "items"} <ChevronRight size={15} /></strong><div className="catalog-reactions subcollection-card-reactions"><span><Heart size={14} fill={subcollection.likedByViewer ? "currentColor" : "none"} /> {subcollection.likeCount}</span><span><MessageCircle size={14} /> {subcollection.commentCount}</span></div></div>
       </Link>
@@ -309,6 +309,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
     ...(subcollection.items[0] ? [{ id: `demo-comment-${subcollection.items[0].id}`, targetType: "item" as const, targetId: subcollection.items[0].id, author: "Maya Chen", body: "This one belongs in a glass case.", createdAt: "2026-07-08T10:20:00.000Z" }] : []),
   ]);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
+  const [itemDetail, setItemDetail] = useState<DemoItem | null>(null);
   const [itemMenu, setItemMenu] = useState<DemoItem | null>(null);
   const [subcollectionMenuOpen, setSubcollectionMenuOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<DemoItem | null>(null);
@@ -324,6 +325,16 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
       setNotice({ type: "success", text: usedNativeShare ? "Share sheet opened." : "Subcollection link copied." });
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") setNotice({ type: "error", text: "The subcollection could not be shared." });
+    }
+  };
+
+  const shareItem = async (item: DemoItem) => {
+    const url = `${window.location.origin}/demo/collections/${collection.slug}/subcollections/${subcollection.id}#item-${item.id}`;
+    try {
+      const usedNativeShare = await shareDemoTarget(item.title, item.description || `A saved object in ${name}.`, url);
+      setNotice({ type: "success", text: usedNativeShare ? "Share sheet opened." : "Item link copied." });
+    } catch (error) {
+      if ((error as DOMException).name !== "AbortError") setNotice({ type: "error", text: "The item could not be shared." });
     }
   };
 
@@ -357,6 +368,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
   const deleteItem = (item: DemoItem) => {
     if (!window.confirm(`Delete “${item.title}” from this demo?`)) return;
     setItems((current) => current.filter((entry) => entry.id !== item.id));
+    setItemDetail((current) => current?.id === item.id ? null : current);
     setItemMenu(null);
     setNotice({ type: "success", text: "Item removed locally in the demo." });
   };
@@ -372,6 +384,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
     setItems((current) => exists ? current.map((item) => item.id === next.id ? next : item) : [next, ...current]);
     if (!exists) setItemReactions((current) => ({ ...current, [next.id]: { liked: next.likedByViewer, likes: next.likeCount, comments: next.commentCount } }));
     setEditingItem(null);
+    setItemDetail(null);
     setAddingItem(false);
     setNotice({ type: "success", text: exists ? "Item and photos saved locally." : "New item with photos added locally." });
   };
@@ -416,14 +429,15 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
       <section className="subcollection-content-shell">
         <div className="subcollection-items-heading"><div><span className="eyebrow">THE OBJECTS INSIDE</span><h2>Items in order</h2><p>Swipe each gallery with your finger, open a full-screen photo, or hold an item for its owner actions.</p></div><button className="primary-button" onClick={() => setAddingItem(true)}><Plus size={16} /> Add item</button></div>
         <div className="subcollection-item-grid">
-          {items.map((item, index) => <DemoSubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 }} onToggleLike={() => toggleItemLike(item.id)} onComment={() => setCommentTarget({ type: "item", id: item.id, title: item.title })} onOpenMenu={() => setItemMenu(item)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: item.title, images, initialIndex })} />)}
+          {items.map((item, index) => <DemoSubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 }} onToggleLike={() => toggleItemLike(item.id)} onComment={() => setCommentTarget({ type: "item", id: item.id, title: item.title })} onOpenDetail={() => setItemDetail(item)} onOpenMenu={() => setItemMenu(item)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: item.title, images, initialIndex })} />)}
           {items.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>This subcollection is ready.</strong><p>Add an item and a few images to start its visual story.</p></div> : null}
         </div>
       </section>
 
       <AnimatePresence>
+        {itemDetail ? <DemoCatalogItemDetailSheet item={itemDetail} subcollectionName={name} visibility={effectiveVisibility} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail.id)} onComment={() => { setItemDetail(null); setCommentTarget({ type: "item", id: itemDetail.id, title: itemDetail.title }); }} onShare={() => void shareItem(itemDetail)} onEdit={() => { setItemDetail(null); setEditingItem(itemDetail); }} onDelete={() => deleteItem(itemDetail)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: itemDetail.title, images, initialIndex })} /> : null}
         {commentTarget ? <DemoCommentSheet target={commentTarget} comments={comments} ownerName={collection.owner.name} onClose={() => setCommentTarget(null)} onSubmit={addComment} /> : null}
-        {itemMenu ? <DemoActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void share()} onDelete={() => deleteItem(itemMenu)} /> : null}
+        {itemMenu ? <DemoActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => deleteItem(itemMenu)} /> : null}
         {subcollectionMenuOpen ? <DemoActionSheet title={name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={() => void share()} onDelete={deleteSubcollection} /> : null}
         {editingItem ? <DemoItemEditorSheet item={editingItem} subcollectionName={name} onClose={() => setEditingItem(null)} onSaved={saveItem} /> : null}
         {addingItem ? <DemoItemEditorSheet subcollectionName={name} onClose={() => setAddingItem(false)} onSaved={saveItem} /> : null}
@@ -435,15 +449,30 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
   );
 }
 
-function DemoSubcollectionItemCard({ item, order, reaction, onToggleLike, onComment, onOpenMenu, onOpenMedia }: { item: DemoItem; order: number; reaction: ReactionState; onToggleLike: () => void; onComment: () => void; onOpenMenu: () => void; onOpenMedia: (images: string[], initialIndex: number) => void }) {
-  const press = useLongPress(onOpenMenu);
-  return <motion.article className="subcollection-item-card" {...press} onContextMenu={(event) => event.preventDefault()} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36, delay: Math.min(order * 0.035, 0.18), ease: [0.16, 1, 0.3, 1] }} whileTap={{ scale: 0.992 }}><DemoItemMediaCarousel item={item} onOpenMedia={onOpenMedia} /><div className="subcollection-item-copy"><div className="subcollection-item-line"><span>#{String(order).padStart(2, "0")}</span><button onClick={onOpenMenu} aria-label={`More options for ${item.title}`}><MoreHorizontal size={17} /></button></div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.details || item.description || "Catalogued object"}</p><div className="catalog-reactions"><button className={reaction.liked ? "liked" : ""} onClick={onToggleLike}><Heart size={16} fill={reaction.liked ? "currentColor" : "none"} /> {reaction.likes}</button><button onClick={onComment}><MessageCircle size={16} /> {reaction.comments}</button></div></div></motion.article>;
+function DemoSubcollectionItemCard({ item, order, reaction, onToggleLike, onComment, onOpenDetail, onOpenMenu, onOpenMedia }: { item: DemoItem; order: number; reaction: ReactionState; onToggleLike: () => void; onComment: () => void; onOpenDetail: () => void; onOpenMenu: () => void; onOpenMedia: (images: string[], initialIndex: number) => void }) {
+  const { preventClickAfterLongPress, ...pressHandlers } = useLongPress(onOpenMenu);
+  return <motion.article className="subcollection-item-card" role="button" tabIndex={0} aria-label={`Open ${item.title}`} {...pressHandlers} onContextMenu={(event) => event.preventDefault()} onClick={() => { if (!preventClickAfterLongPress()) onOpenDetail(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(); } }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36, delay: Math.min(order * 0.035, 0.18), ease: [0.16, 1, 0.3, 1] }} whileTap={{ scale: 0.992 }}><DemoItemMediaCarousel item={item} onOpenMedia={onOpenMedia} /><div className="subcollection-item-copy"><div className="subcollection-item-line"><span>#{String(order).padStart(2, "0")}</span><button onClick={(event) => { event.stopPropagation(); onOpenMenu(); }} aria-label={`More options for ${item.title}`}><MoreHorizontal size={17} /></button></div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.details || item.description || "Catalogued object"}</p><div className="catalog-reactions"><button className={reaction.liked ? "liked" : ""} onClick={(event) => { event.stopPropagation(); onToggleLike(); }}><Heart size={16} fill={reaction.liked ? "currentColor" : "none"} /> {reaction.likes}</button><button onClick={(event) => { event.stopPropagation(); onComment(); }}><MessageCircle size={16} /> {reaction.comments}</button></div></div></motion.article>;
 }
 
 function DemoItemMediaCarousel({ item, onOpenMedia }: { item: DemoItem; onOpenMedia: (images: string[], initialIndex: number) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const images = item.images;
-  return <div className="item-media-carousel demo-item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.length ? images.map((image, index) => <button className="item-media-slide" key={`${image}-${index}`} onClick={() => onOpenMedia(images, index)} aria-label={`Open photo ${index + 1} of ${item.title}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}<button className="item-media-zoom" onClick={() => onOpenMedia(images, activeIndex)} aria-label={`View ${item.title} fullscreen`}><ZoomIn size={15} /></button>{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
+  return <div className="item-media-carousel demo-item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.length ? images.map((image, index) => <button className="item-media-slide" key={`${image}-${index}`} onClick={(event) => { event.stopPropagation(); onOpenMedia(images, index); }} aria-label={`Open photo ${index + 1} of ${item.title}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}<button className="item-media-zoom" onClick={(event) => { event.stopPropagation(); onOpenMedia(images, activeIndex); }} aria-label={`View ${item.title} fullscreen`}><ZoomIn size={15} /></button>{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
+}
+
+function DemoCatalogItemDetailSheet({ item, subcollectionName, visibility, reaction, onClose, onToggleLike, onComment, onShare, onEdit, onDelete, onOpenMedia }: { item: DemoItem; subcollectionName: string; visibility: Visibility; reaction: ReactionState; onClose: () => void; onToggleLike: () => void; onComment: () => void; onShare: () => void; onEdit: () => void; onDelete: () => void; onOpenMedia: (images: string[], initialIndex: number) => void }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const images = item.images;
+  const metadata = [
+    { label: "Brand", value: item.brand },
+    { label: "Details", value: item.details },
+    { label: "Mood", value: item.mood },
+    { label: "Visibility", value: visibilityLabel(item.visibility ?? visibility) },
+    { label: "Added", value: shortDate(item.createdAt) },
+    { label: "Photos", value: `${images.length} ${images.length === 1 ? "photo" : "photos"}` },
+  ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+
+  return <motion.div className="catalog-item-detail-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-item-detail-sheet" role="dialog" aria-modal="true" aria-label={`${item.title} details`} initial={{ opacity: 0, y: 28, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.985 }} transition={{ type: "spring", damping: 28, stiffness: 310 }} onClick={(event) => event.stopPropagation()}><header className="catalog-item-detail-header"><div><span className="eyebrow">ITEM DETAIL · {subcollectionName}</span><h2>{item.title}</h2></div><button type="button" onClick={onClose} aria-label="Close item details"><X size={20} /></button></header><div className="catalog-item-detail-gallery">{images.length ? <div className="catalog-item-detail-gallery-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.map((image, index) => <button className="catalog-item-detail-gallery-slide" type="button" key={`${image}-${index}`} onClick={() => onOpenMedia(images, index)} aria-label={`Open photo ${index + 1} fullscreen`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>)}</div> : <div className="catalog-item-detail-gallery-empty"><Layers3 size={30} /><span>No photos added yet</span></div>}{images.length > 1 ? <div className="catalog-item-detail-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={index === activeIndex ? "active" : ""} key={`${image}-indicator`} />)}</div></div> : null}{item.isFavorite ? <span className="catalog-item-detail-favorite"><Star size={15} fill="currentColor" /> Favourite</span> : null}</div><div className="catalog-item-detail-copy"><p className="catalog-item-detail-description">{item.description || "No description has been added to this object yet."}</p><dl className="catalog-item-detail-meta">{metadata.map((entry) => <div key={entry.label}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}</dl></div><footer className="catalog-item-detail-actions"><div><button className={reaction.liked ? "liked" : ""} type="button" onClick={onToggleLike}><Heart size={17} fill={reaction.liked ? "currentColor" : "none"} /> <span>{reaction.likes}</span></button><button type="button" onClick={onComment}><MessageCircle size={17} /> <span>{reaction.comments}</span></button><button type="button" onClick={onShare}><Share2 size={17} /><span>Share</span></button></div><div className="catalog-item-detail-owner-actions"><button type="button" onClick={onEdit}><Pencil size={17} /><span>Edit</span></button><button className="danger" type="button" onClick={onDelete}><Trash2 size={17} /><span>Delete</span></button></div></footer></motion.section></motion.div>;
 }
 
 function DemoCompactItemGrid({ items, onDelete, emptyTitle, emptyBody }: { items: DemoItem[]; onDelete: (item: DemoItem) => void; emptyTitle: string; emptyBody: string }) {
