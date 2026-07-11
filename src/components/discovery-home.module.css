@@ -151,3 +151,41 @@
 @media (max-width: 780px) {
   :global(.feed-header) { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgb(255 254 250 / 97%) !important; }
 }
+
+/* Post detail interaction polish. */
+.postDetail { grid-template-rows: auto minmax(0, 1fr) auto; }
+.postAuthorRow { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+.postAuthorRow .postAuthor { min-width: 0; flex: 1; }
+.followButton { flex: 0 0 auto; border: 1px solid #d2dfb4; border-radius: 999px; background: #f7fbe9; color: #607631; padding: 7px 12px; font-size: 10px; font-weight: 800; transition: background .2s ease, color .2s ease, transform .2s ease; }
+.followButton:hover { background: #edf5d9; transform: translateY(-1px); }
+.followButton.following { border-color: #cfd8c2; background: #f2f4ed; color: #707b68; }
+.postCommentHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.postCommentAuthor { min-width: 0; }
+.postCommentMore { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #8b9585; padding: 0; }
+.postCommentMore:hover { background: #f0f3e9; color: #536d2d; }
+.postCommentActions { gap: 18px; }
+.postCommentComposer { position: relative; display: flex; align-items: center; gap: 8px; margin-top: 0; border: 0; border-top: 1px solid #e7ebdf; border-radius: 0; background: rgb(255 254 250 / 97%); padding: 9px max(16px, calc((100% - 720px) / 2)) calc(9px + env(safe-area-inset-bottom)); }
+.postCommentComposer textarea { min-height: 34px; max-height: 92px; flex: 1; resize: none; border: 0; border-bottom: 1px solid #dfe6d7; border-radius: 0; outline: 0; background: transparent; color: #34402b; padding: 7px 2px; font-size: 12px; line-height: 1.35; }
+.postCommentComposer textarea:focus { border-bottom-color: #a8bd72; box-shadow: none; }
+.postCommentComposer footer { display: flex; align-items: center; gap: 7px; margin-top: 0; }
+.postCommentComposer footer button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 50%; background: #27311f; color: #fff; padding: 0; }
+.postCommentComposerReply { position: absolute; left: max(16px, calc((100% - 720px) / 2)); top: -20px; display: flex; align-items: center; gap: 7px; color: #71843c; font-size: 9px; font-weight: 750; }
+.postCommentComposerReply button { border: 0; background: transparent; color: #8a9582; padding: 0; font-size: 9px; }
+.commentMoreBackdrop { position: fixed; z-index: 1400; inset: 0; display: flex; align-items: end; justify-content: center; padding: 18px; background: rgb(18 22 14 / 32%); backdrop-filter: blur(7px); }
+.commentMoreSheet { width: min(430px, 100%); overflow: hidden; border: 1px solid #e1e7d6; border-radius: 20px 20px 14px 14px; background: #fffefa; box-shadow: 0 24px 70px rgb(20 26 16 / 28%); }
+.commentMoreSheet header { display: flex; align-items: start; justify-content: space-between; gap: 10px; padding: 13px 16px 11px; border-bottom: 1px solid #edf0e7; }
+.commentMoreSheet header span { color: #77865b; font-size: 9px; font-weight: 850; letter-spacing: .13em; }
+.commentMoreSheet header h3 { margin: 4px 0 0; color: #303b27; font-family: Georgia, serif; font-size: 20px; font-weight: 500; }
+.commentMoreSheet header button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #e1e7d6; border-radius: 9px; background: #f7f9f2; color: #53653a; }
+.commentMoreSheet > button { display: flex; width: 100%; align-items: center; gap: 10px; min-height: 45px; border: 0; border-bottom: 1px solid #eef1e9; background: transparent; color: #46553a; padding: 0 16px; font-size: 12px; font-weight: 700; text-align: left; }
+.commentMoreSheet > button:hover { background: #f2f6e9; }
+.commentMoreSheet > button.commentMoreDanger { color: #a7554d; }
+@media (max-width: 640px) {
+  .postAuthorRow { margin-bottom: 13px; }
+  .postActions { justify-content: space-between; gap: 0; padding-block: 10px; }
+  .postActions button, .postViewStat { padding-inline: 6px; }
+  .postCommentComposer { padding-inline: 16px; }
+  .postCommentComposerReply { left: 16px; }
+  .commentMoreBackdrop { padding: 0; }
+  .commentMoreSheet { width: 100%; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 21px 21px 0 0; }
+}
