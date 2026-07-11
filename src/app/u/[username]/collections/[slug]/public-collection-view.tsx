@@ -6,7 +6,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
-  Eye,
   Heart,
   Layers3,
   MessageCircle,
@@ -50,6 +49,19 @@ function reactionFrom(target: { likedByViewer: boolean; likeCount: number; comme
     comments: target.commentCount,
     views: target.viewCount,
   };
+}
+
+function ViewCount({ count, variant = "card" }: { count: number; variant?: "hero" | "card" | "detail" }) {
+  const label = `${count} ${count === 1 ? "view" : "views"}`;
+  const variantClass = variant === "hero"
+    ? styles.publicViewCountHero
+    : variant === "detail"
+      ? styles.publicViewCountDetail
+      : styles.publicViewCountCard;
+
+  return <span className={`${styles.publicViewCount} ${variantClass}`} aria-label={label} title={label}>
+    {numberLabel(count)} reads
+  </span>;
 }
 
 export function PublicCollectionView({
@@ -175,13 +187,16 @@ export function PublicCollectionView({
           <h1>{collection.name}</h1>
           <p>{collection.description || "A collection kept in public, one story at a time."}</p>
           <div className={styles.publicCollectionFacts}>
-            <span><strong>{collection.itemCount}</strong> objects</span>
-            <span><strong>{numberLabel(collectionReaction.views)}</strong> views</span>
+            <span><strong>{collection.itemCount}</strong><small>objects</small></span>
+            <span><strong>{collection.subcollectionCount}</strong><small>sections</small></span>
           </div>
-          <div className={styles.publicCollectionActions}>
-            <button className={collectionReaction.liked ? styles.liked : ""} disabled={pending} onClick={toggleCollectionLike}><Heart size={17} fill={collectionReaction.liked ? "currentColor" : "none"} /> {numberLabel(collectionReaction.likes)}</button>
-            <button onClick={() => setCommentsOpen(true)}><MessageCircle size={17} /> {numberLabel(collectionReaction.comments)}</button>
-            <button onClick={() => void shareCollection()} aria-label="Share collection"><Share2 size={17} /> Share</button>
+          <div className={styles.publicCollectionEngagement}>
+            <div className={styles.publicCollectionActions}>
+              <button className={collectionReaction.liked ? styles.liked : ""} disabled={pending} onClick={toggleCollectionLike} aria-label={`${collectionReaction.liked ? "Unlike" : "Like"} collection, ${numberLabel(collectionReaction.likes)} likes`}><Heart aria-hidden="true" size={17} fill={collectionReaction.liked ? "currentColor" : "none"} /> {numberLabel(collectionReaction.likes)}</button>
+              <button onClick={() => setCommentsOpen(true)} aria-label={`Open ${numberLabel(collectionReaction.comments)} collection comments`}><MessageCircle aria-hidden="true" size={17} /> {numberLabel(collectionReaction.comments)}</button>
+              <button onClick={() => void shareCollection()} aria-label="Share collection"><Share2 aria-hidden="true" size={17} /> Share</button>
+            </div>
+            <ViewCount count={collectionReaction.views} variant="hero" />
           </div>
         </div>
       </motion.section>
@@ -197,7 +212,7 @@ export function PublicCollectionView({
               <div>{subcollection.coverUrl ? <img src={subcollection.coverUrl} alt="" /> : <Layers3 size={26} />}<span>{subcollection.kind}</span></div>
               <small>{subcollection.name}</small><p>{subcollection.description || "Open this section to see every saved object."}</p>
             </button>
-            <div className={styles.publicSubcollectionMeta}><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={() => toggleSubcollectionLike(subcollection)}><Heart size={14} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button><span><Eye size={14} /> {numberLabel(reaction.views)}</span></div>
+            <div className={styles.publicSubcollectionMeta}><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={() => toggleSubcollectionLike(subcollection)}><Heart size={14} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button></div>
           </article>;
         })}</div> : <div className={styles.emptyProfile}><Layers3 size={26} /><strong>No public sections yet.</strong><p>This collection is waiting for its first shelf.</p></div>}
       </section>
@@ -216,7 +231,7 @@ export function PublicCollectionView({
             setCollectionReaction((current) => ({ ...current, comments: current.comments + 1 }));
           });
         }} /> : null}
-        {activeSubcollection ? <SubcollectionSheet subcollection={activeSubcollection} items={collectionItems} reactions={itemReactions} pending={pending} onClose={() => setActiveSubcollection(null)} onOpenItem={openItem} onToggleItemLike={toggleItemLike} /> : null}
+        {activeSubcollection ? <SubcollectionSheet subcollection={activeSubcollection} viewCount={subcollectionReactions[activeSubcollection.id]?.views ?? activeSubcollection.viewCount} items={collectionItems} reactions={itemReactions} pending={pending} onClose={() => setActiveSubcollection(null)} onOpenItem={openItem} onToggleItemLike={toggleItemLike} /> : null}
         {activeItem ? <ItemSheet item={activeItem} reaction={itemReactions[activeItem.id] ?? reactionFrom(activeItem)} pending={pending} onClose={() => setActiveItem(null)} onToggleLike={() => toggleItemLike(activeItem)} /> : null}
       </AnimatePresence>
     </main>
@@ -229,7 +244,7 @@ function PublicItemCard({ item, reaction, pending, onOpen, onToggleLike }: { ite
       <div>{item.imageUrls[0] ? <img src={item.imageUrls[0]} alt="" /> : <Layers3 size={28} />}{item.isFavorite ? <span><Star size={13} fill="currentColor" /> Favourite</span> : null}</div>
       <small>{item.mood}</small><h3>{item.title}</h3><p>{itemMeta(item) || item.description || "A catalogued object."}</p>
     </button>
-    <div className={styles.publicItemMeta}><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={onToggleLike}><Heart size={14} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button><span><Eye size={14} /> {numberLabel(reaction.views)}</span></div>
+    <div className={styles.publicItemMeta}><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={onToggleLike}><Heart size={14} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button></div>
   </article>;
 }
 
@@ -238,11 +253,11 @@ function CollectionCommentsSheet({ collection, comments, pending, onClose, onSub
   return <motion.div className="catalog-comment-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-comment-sheet" role="dialog" aria-modal="true" aria-label={`Comments for ${collection.name}`} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">COLLECTION DISCUSSION</span><h2>{collection.name}</h2></div><button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button></header><div className="catalog-comment-list">{comments.length ? comments.map((comment) => <article key={comment.id}><span>{comment.isOwn ? "You" : "Collector"}</span><p>{comment.body}</p><small>{new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(comment.createdAt))}</small></article>) : <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave a thought on this collection.</p></div>}</div><form onSubmit={(event) => { event.preventDefault(); const body = draft.trim(); if (!body) return; onSubmit(body); setDraft(""); }}><span className={styles.commentAvatar}>K</span><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a comment about this collection…" maxLength={2000} /><button className="primary-button" disabled={pending || !draft.trim()}><Send size={16} /> Send</button></form></motion.section></motion.div>;
 }
 
-function SubcollectionSheet({ subcollection, items, reactions, pending, onClose, onOpenItem, onToggleItemLike }: { subcollection: PublicProfileSubcollectionDTO; items: PublicProfileItemDTO[]; reactions: Record<string, ReactionState>; pending: boolean; onClose: () => void; onOpenItem: (item: PublicProfileItemDTO) => void; onToggleItemLike: (item: PublicProfileItemDTO) => void }) {
-  return <motion.div className={styles.publicDetailBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className={styles.publicDetailSheet} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} onClick={(event) => event.stopPropagation()}><header><div><span className={styles.kicker}>{subcollection.kind} SECTION</span><h2>{subcollection.name}</h2><p>{subcollection.description || "Every object gathered here."}</p></div><button onClick={onClose} aria-label="Close section"><X size={19} /></button></header><div className={styles.publicDetailItems}>{items.length ? items.map((item) => <PublicItemCard item={item} reaction={reactions[item.id] ?? reactionFrom(item)} pending={pending} onOpen={() => onOpenItem(item)} onToggleLike={() => onToggleItemLike(item)} key={item.id} />) : <div className={styles.emptyProfile}><Layers3 size={24} /><strong>No public objects here yet.</strong></div>}</div></motion.section></motion.div>;
+function SubcollectionSheet({ subcollection, viewCount, items, reactions, pending, onClose, onOpenItem, onToggleItemLike }: { subcollection: PublicProfileSubcollectionDTO; viewCount: number; items: PublicProfileItemDTO[]; reactions: Record<string, ReactionState>; pending: boolean; onClose: () => void; onOpenItem: (item: PublicProfileItemDTO) => void; onToggleItemLike: (item: PublicProfileItemDTO) => void }) {
+  return <motion.div className={styles.publicDetailBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className={styles.publicDetailSheet} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} onClick={(event) => event.stopPropagation()}><header><div><span className={styles.kicker}>{subcollection.kind} SECTION</span><h2>{subcollection.name}</h2><p>{subcollection.description || "Every object gathered here."}</p><ViewCount count={viewCount} variant="detail" /></div><button onClick={onClose} aria-label="Close section"><X size={19} /></button></header><div className={styles.publicDetailItems}>{items.length ? items.map((item) => <PublicItemCard item={item} reaction={reactions[item.id] ?? reactionFrom(item)} pending={pending} onOpen={() => onOpenItem(item)} onToggleLike={() => onToggleItemLike(item)} key={item.id} />) : <div className={styles.emptyProfile}><Layers3 size={24} /><strong>No public objects here yet.</strong></div>}</div></motion.section></motion.div>;
 }
 
 function ItemSheet({ item, reaction, pending, onClose, onToggleLike }: { item: PublicProfileItemDTO; reaction: ReactionState; pending: boolean; onClose: () => void; onToggleLike: () => void }) {
   const metadata = [item.brand, item.model, item.year, item.condition].filter(Boolean).join(" · ");
-  return <motion.div className={styles.publicDetailBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className={styles.publicItemSheet} initial={{ opacity: 0, y: 24, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: .985 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} onClick={(event) => event.stopPropagation()}><header><div><span className={styles.kicker}>{item.mood} OBJECT</span><h2>{item.title}</h2></div><button onClick={onClose} aria-label="Close item"><X size={19} /></button></header><div className={styles.publicItemSheetImage}>{item.imageUrls[0] ? <img src={item.imageUrls[0]} alt={item.title} /> : <Layers3 size={38} />}</div><div className={styles.publicItemSheetCopy}><p>{item.description || "No description has been added to this object yet."}</p>{metadata ? <span>{metadata}</span> : null}<div><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={onToggleLike}><Heart size={17} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button><span><Eye size={17} /> {numberLabel(reaction.views)} views</span></div></div></motion.section></motion.div>;
+  return <motion.div className={styles.publicDetailBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className={styles.publicItemSheet} initial={{ opacity: 0, y: 24, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: .985 }} transition={{ type: "spring", stiffness: 300, damping: 28 }} onClick={(event) => event.stopPropagation()}><header><div><span className={styles.kicker}>{item.mood} OBJECT</span><h2>{item.title}</h2></div><button onClick={onClose} aria-label="Close item"><X size={19} /></button></header><div className={styles.publicItemSheetImage}>{item.imageUrls[0] ? <img src={item.imageUrls[0]} alt={item.title} /> : <Layers3 size={38} />}</div><div className={styles.publicItemSheetCopy}><p>{item.description || "No description has been added to this object yet."}</p>{metadata ? <span>{metadata}</span> : null}<div><button className={reaction.liked ? styles.liked : ""} disabled={pending} onClick={onToggleLike}><Heart size={17} fill={reaction.liked ? "currentColor" : "none"} /> {numberLabel(reaction.likes)}</button><ViewCount count={reaction.views} variant="detail" /></div></div></motion.section></motion.div>;
 }

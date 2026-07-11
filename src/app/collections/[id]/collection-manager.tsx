@@ -396,7 +396,7 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
             <div className="catalog-reactions collection-reactions" aria-label="Collection engagement">
               <button className={collectionReaction.liked ? "liked" : ""} disabled={pending} onClick={toggleCollectionLike} aria-label={collectionReaction.liked ? "Unlike collection" : "Like collection"}><Heart size={17} fill={collectionReaction.liked ? "currentColor" : "none"} /> {collectionReaction.likes}</button>
               <button disabled={pending} onClick={() => setCommentTarget({ type: "collection", id: collection.id, title: collection.name })}><MessageCircle size={17} /> {collectionReaction.comments}</button>
-              <span className="catalog-view-count" aria-label={`${collectionReaction.views} collection views`}><Eye size={16} /> {collectionReaction.views}</span>
+              <span className="catalog-quiet-view" aria-label={`${collectionReaction.views} collection views`}>{collectionReaction.views.toLocaleString()} reads</span>
             </div>
             <div className="studio-hero-actions">
               <button className="secondary-button" disabled={pending} onClick={() => void shareCollection()}><Share2 size={16} /> Share</button>

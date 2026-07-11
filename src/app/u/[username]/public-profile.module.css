@@ -130,7 +130,20 @@
 .publicCollectionFacts span { display: inline-flex; align-items: baseline; gap: 5px; min-height: 46px; padding: 0 14px; color: var(--muted); font-size: 10px; }
 .publicCollectionFacts span + span { border-left: 1px solid #e1e5d3; }
 .publicCollectionFacts strong { color: #37412b; font-family: Georgia, serif; font-size: 19px; }
+.publicCollectionEngagement { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 19px; padding-top: 15px; border-top: 1px solid #e7eadf; }
 .publicCollectionActions { display: flex; flex-wrap: wrap; gap: 7px; }
+.publicViewCount { display: inline-flex; min-height: 29px; align-items: center; gap: 6px; color: #808a73; font-size: 9px; font-weight: 760; font-variant-numeric: tabular-nums; letter-spacing: .08px; line-height: 1; white-space: nowrap; }
+.publicViewCount::before { width: 4px; height: 4px; flex: 0 0 auto; border-radius: 50%; background: #b5c58a; content: ""; }
+.publicViewCountHero { margin-left: auto; padding-left: 13px; border-left: 1px solid #e2e6d8; }
+.publicViewCountCard { margin-left: auto; }
+.publicViewCountDetail { min-height: 38px; padding-left: 13px; border-left: 1px solid var(--soft-line); font-size: 10px; }
+
+/* Public read counts stay textual and only appear once the visitor opens context. */
+.publicViewCount { min-height: 0; gap: 0; color: #8a9280; font-size: 8px; font-weight: 720; letter-spacing: .16px; line-height: 1.35; }
+.publicViewCount::before { display: none; }
+.publicViewCountHero { margin: 10px 0 0; padding: 0; border: 0; }
+.publicViewCountCard { display: none; }
+.publicViewCountDetail { min-height: 0; margin-top: 11px; padding: 0; border: 0; font-size: 8px; }
 .publicCollectionActions button, .publicSubcollectionMeta button, .publicItemMeta button, .publicItemSheetCopy button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 1px solid #dce2cf; border-radius: 11px 11px 11px 4px; background: #fbfcf7; color: #65705a; cursor: pointer; font-size: 11px; font-weight: 760; transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease; }
 .publicCollectionActions button:hover, .publicSubcollectionMeta button:hover, .publicItemMeta button:hover, .publicItemSheetCopy button:hover { transform: translateY(-2px); border-color: #c5d496; background: #f0f5df; color: #526429; }
 .publicCollectionActions button:last-child { color: #46503b; }
@@ -236,8 +249,11 @@
   .publicCollectionCopy > p { font-size: 12px; }
   .publicCollectionFacts { width: 100%; margin: 17px 0 13px; }
   .publicCollectionFacts span { flex: 1; justify-content: center; min-height: 40px; padding-inline: 8px; }
+  .publicCollectionEngagement { align-items: stretch; flex-direction: column; gap: 7px; margin-top: 15px; padding-top: 13px; }
   .publicCollectionActions { width: 100%; }
   .publicCollectionActions button { flex: 1; justify-content: center; min-height: 36px; padding-inline: 9px; }
+  .publicViewCountHero { align-self: flex-start; min-height: 24px; margin-left: 2px; padding-left: 0; border-left: 0; }
+  .publicViewCountHero { min-height: 0; margin: 8px 0 0; }
   .publicCollectionSection { padding-top: 28px; }
   .publicSubcollectionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .publicSubcollectionOpen > div { height: 132px; }

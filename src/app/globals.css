@@ -1413,3 +1413,162 @@ body {
 @media (max-width: 640px) {
   .quick-collection-backdrop { align-items: end; padding: 0; }.quick-collection-sheet { width: 100%; max-height: min(88dvh, 720px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 25px 25px 0 0; }.quick-collection-header { padding: 18px 18px 14px; }.quick-collection-header h2 { font-size: 25px; }.quick-collection-header p { font-size: 10px; }.quick-collection-form { gap: 13px; padding: 15px 18px 16px; }.quick-collection-cover { grid-template-columns: 104px minmax(0, 1fr); gap: 11px; padding: 10px; }.quick-collection-cover-preview, .quick-collection-cover-preview img { min-height: 78px; }.quick-collection-cover strong { font-size: 11px; }.quick-collection-cover small { font-size: 8px; }.quick-collection-field input, .quick-collection-field select { min-height: 42px; font-size: 11px; }.quick-collection-field textarea { min-height: 78px; font-size: 11px; }.quick-collection-options { grid-template-columns: 1fr; gap: 10px; }.quick-collection-actions { bottom: -16px; margin: 0 -18px -16px; padding: 11px 18px calc(11px + env(safe-area-inset-bottom)); }.quick-collection-actions .primary-button { min-width: 0; flex: 1; }.quick-collection-actions .text-button { padding: 0 5px; }
 }
+
+/* Engagement is supporting information, never a competing card or image badge. */
+.catalog-quiet-view {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  color: #818a74;
+  font-size: 9px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.catalog-quiet-view::before {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #b6c58b;
+  content: "";
+}
+.catalog-reactions .catalog-quiet-view { margin-left: 1px; }
+.item-media-carousel .item-view-count { display: none; }
+
+.collection-showcase-engagement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -10px 3px 2px;
+  padding: 0 4px 0 10px;
+  color: #65705a;
+}
+.collection-showcase-engagement-label {
+  color: #77816d;
+  font-size: 8px;
+  font-weight: 810;
+  letter-spacing: 1.05px;
+  text-transform: uppercase;
+}
+.collection-showcase-engagement-actions {
+  gap: 1px;
+  padding: 3px 5px;
+  border: 1px solid #e1e6d8;
+  border-radius: 12px 12px 12px 4px;
+  background: rgb(255 254 250 / 67%);
+  box-shadow: 0 8px 19px rgb(45 49 30 / 5%), inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+.collection-showcase-engagement-actions .catalog-quiet-view { min-height: 27px; }
+
+.subcollection-route-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid #e9ece1;
+}
+.subcollection-route-footer > strong { min-width: 0; margin: 0; }
+.subcollection-route-footer .catalog-quiet-view { min-height: 20px; padding-right: 0; font-size: 8px; }
+.collection-catalog-grid .subcollection-route-link > div:last-child { gap: 8px; padding: 16px 15px 15px; }
+.collection-catalog-grid .subcollection-route-link h3 { line-height: 1.08; }
+.collection-catalog-grid .subcollection-route-link small { line-height: 1.35; }
+.collection-catalog-grid .subcollection-card-reactions {
+  position: static;
+  display: flex;
+  max-height: none;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eff1e9;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #7a836e;
+  opacity: 1;
+  transform: none;
+}
+.collection-catalog-grid .subcollection-card-reactions span { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 730; }
+.collection-catalog-grid .curator-subcollection-card:hover .subcollection-card-reactions,
+.collection-catalog-grid .curator-subcollection-card:focus-within .subcollection-card-reactions { max-height: none; margin-top: 8px; opacity: 1; transform: none; }
+
+@media (max-width: 640px) {
+  .collection-showcase-engagement { margin: -1px 2px 6px; padding: 0 4px; }
+  .collection-showcase-engagement-actions { padding: 2px 4px; }
+  .collection-showcase-engagement-actions .catalog-reactions button,
+  .collection-showcase-engagement-actions button { min-height: 27px; padding-inline: 5px; }
+  .collection-showcase-engagement-actions .catalog-quiet-view { min-height: 27px; padding-inline: 5px; }
+}
+
+@media (max-width: 520px) {
+  .collection-showcase-engagement { gap: 8px; margin: -2px 0 5px; }
+  .collection-showcase-engagement-label { font-size: 7px; letter-spacing: .86px; }
+  .collection-showcase-engagement-actions .catalog-reactions button,
+  .collection-showcase-engagement-actions button { min-height: 26px; padding-inline: 4px; font-size: 8px; }
+  .collection-showcase-engagement-actions .catalog-quiet-view { min-height: 26px; gap: 4px; padding-inline: 4px; font-size: 8px; }
+  .collection-catalog-grid { gap: 12px; }
+  .collection-catalog-grid .subcollection-route-link > div:last-child { gap: 7px; padding: 13px 12px 13px; }
+  .collection-catalog-grid .subcollection-route-link h3 { font-size: 19px; line-height: 1.08; }
+  .collection-catalog-grid .subcollection-route-link small { font-size: 7.5px; line-height: 1.45; }
+  .collection-catalog-grid .subcollection-route-footer { gap: 5px; margin-top: 7px; padding-top: 8px; }
+  .collection-catalog-grid .subcollection-route-footer > strong { font-size: 9px; }
+  .collection-catalog-grid .subcollection-route-footer .catalog-quiet-view { gap: 4px; font-size: 7.5px; }
+  .collection-catalog-grid .subcollection-card-reactions { display: flex; gap: 8px; margin-top: 7px; padding-top: 7px; }
+  .collection-catalog-grid .subcollection-card-reactions span { font-size: 8px; }
+  .catalog-reactions .catalog-quiet-view { margin-left: 0; padding-inline: 4px; font-size: 8px; }
+  .subcollection-reactions .catalog-quiet-view { min-height: 28px; }
+}
+
+@media (max-width: 390px) {
+  .collection-catalog-grid { grid-template-columns: 1fr; }
+  .collection-catalog-grid .subcollection-route-image,
+  .collection-catalog-grid .subcollection-route-image img { min-height: 168px; height: 168px; }
+}
+
+/* Reads are deliberately quiet: they belong to the story, not to the card chrome. */
+.catalog-quiet-view {
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+  color: #8c9383;
+  font-size: 8px;
+  font-weight: 720;
+  letter-spacing: .18px;
+  line-height: 1.3;
+}
+.catalog-quiet-view::before { display: none; }
+.collection-reactions,
+.subcollection-reactions {
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e7eadf;
+}
+.catalog-reactions button { min-height: 27px; padding-inline: 5px; font-size: 9px; }
+.collection-showcase-signal {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e9da;
+}
+.collection-showcase-signal .catalog-quiet-view { margin-left: 2px; }
+.collection-showcase-engagement { display: none; }
+.subcollection-route-footer { display: contents; }
+
+@media (max-width: 520px) {
+  .collection-showcase-signal { margin-top: 13px; padding-top: 9px; }
+  .collection-showcase-signal .catalog-reactions button,
+  .collection-showcase-signal button { min-height: 26px; padding-inline: 4px; font-size: 8px; }
+  .collection-showcase-signal .catalog-quiet-view,
+  .catalog-reactions .catalog-quiet-view { font-size: 7.5px; }
+  .subcollection-reactions { margin-top: 0; padding-top: 7px; }
+}
