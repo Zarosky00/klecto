@@ -110,6 +110,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
   const [filter, setFilter] = useState<DiscoveryFilter>("all");
   const [entries, setEntries] = useState(feed.entries);
   const [commentTarget, setCommentTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [commentOverMedia, setCommentOverMedia] = useState(false);
   const [wishlistTarget, setWishlistTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [mediaTarget, setMediaTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [postTarget, setPostTarget] = useState<DiscoveryFeedEntryDTO | null>(() => feed.entries.find((entry) => entry.id === initialPostId) ?? null);
@@ -210,6 +211,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     const addLocalComment = () => {
       setEntries((current) => updateEntry(current, target.id, updateWithComment));
       setPostTarget((current) => current?.id === target.id ? updateWithComment(current) : current);
+      setMediaTarget((current) => current?.id === target.id ? updateWithComment(current) : current);
     };
     if (feed.isDemoFallback) {
       addLocalComment();
@@ -290,6 +292,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     closePost();
     setCatalogTarget(null);
     setMediaTarget(null);
+    setCommentOverMedia(false);
     setCommentTarget(previewItemEntry(item));
   };
   const openPreviewWishlist = (item: DiscoveryFeedEntryDTO["catalogPreview"]["items"][number]) => {
@@ -332,7 +335,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
         <AnimatePresence initial={false} mode="popLayout">
           {visibleEntries.map((entry, index) => (
             <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} viewer={viewer} pending={isPending}
-              onLike={() => toggleLike(entry)} onComment={() => setCommentTarget(entry)} onWishlist={() => setWishlistTarget(entry)}
+              onLike={() => toggleLike(entry)} onComment={() => { setCommentOverMedia(false); setCommentTarget(entry); }} onWishlist={() => setWishlistTarget(entry)}
               onMedia={() => setMediaTarget(entry)} onOpenPost={() => openPost(entry)} onWishlisters={() => setWishlisterTarget(entry)} onMore={() => setProfileActionTarget(entry)} />
           ))}
         </AnimatePresence>
@@ -341,7 +344,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
       {visibleEntries.length === 0 && <div className={styles.empty}><Layers3 size={22} /><strong>No matching shelves yet.</strong><span>Try another part of the catalogue.</span></div>}
 
       <AnimatePresence>
-        {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} onClose={() => setCommentTarget(null)} onSubmit={addComment} />}
+        {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} overMedia={commentOverMedia} onClose={() => { setCommentTarget(null); setCommentOverMedia(false); }} onSubmit={addComment} />}
         {wishlistTarget && <WishlistComposer entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
         {postTarget && <PostDetail entry={postTarget} demo={feed.isDemoFallback} viewer={viewer} pending={isPending} onClose={closePost}
           onLike={() => toggleLike(postTarget)} onWishlist={() => setWishlistTarget(postTarget)}
@@ -350,7 +353,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
           onSubmitComment={(body, parentId) => addCommentForTarget(postTarget, body, false, parentId)} />}
         {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)}
           onLike={() => toggleLike(mediaTarget)}
-          onComment={() => { setMediaTarget(null); setCommentTarget(mediaTarget); }}
+          onComment={() => { setCommentOverMedia(true); setCommentTarget(mediaTarget); }}
           onWishlist={() => { setMediaTarget(null); setWishlistTarget(mediaTarget); }} />}
         {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
           onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
@@ -438,7 +441,7 @@ function SourceOwner({ entry, demo }: { entry: DiscoveryFeedEntryDTO; demo: bool
   );
 }
 
-function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; pending: boolean; onClose: () => void; onSubmit: (body: string, parentId?: string) => void }) {
+function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; pending: boolean; overMedia: boolean; onClose: () => void; onSubmit: (body: string, parentId?: string) => void }) {
   const [body, setBody] = useState("");
   const [commentFilter, setCommentFilter] = useState<"top" | "latest">("top");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -499,7 +502,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
     </div>;
   };
   return createPortal(
-    <motion.div className={styles.sheetBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+    <motion.div className={`${styles.sheetBackdrop} ${overMedia ? styles.sheetBackdropOverMedia : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.aside className={`${styles.sheet} ${styles.commentDrawer}`} initial={{ x: 36, opacity: 0.7 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 36, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
         <div className={styles.sheetHandle} />
         <header><div><span>CONVERSATION</span><h3>{entry.commentCount} comments</h3></div><button type="button" onClick={onClose} aria-label="Close comments"><X size={19} /></button></header>
@@ -527,6 +530,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
 
 function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: () => void; onComment: () => void; onWishlist: () => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
+  const [previewDiscovery, setPreviewDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
@@ -534,6 +538,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   const [immersive, setImmersive] = useState(false);
   const [zoom, setZoom] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const viewerRef = useRef<HTMLElement | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistance = useRef<number | null>(null);
   const pinchStartZoom = useRef(1);
@@ -581,14 +586,17 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   }, [images.length]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        if (previewDiscovery) setPreviewDiscovery(null);
+        else onClose();
+      }
       if (event.key === "ArrowLeft") goTo(activeIndex - 1);
       if (event.key === "ArrowRight") goTo(activeIndex + 1);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   // activeIndex is intentionally part of the shortcut state.
-  }, [activeIndex, goTo, onClose]);
+  }, [activeIndex, goTo, onClose, previewDiscovery]);
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
@@ -628,38 +636,50 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     setImmersive((active) => !active);
   };
   const exploreDiscovery = (discovery: ViewerDiscovery) => {
+    setPreviewDiscovery(discovery);
+  };
+  const showDiscoveryInViewer = (discovery: ViewerDiscovery) => {
     setSelectedDiscovery(discovery.current ? null : discovery);
+    setPreviewDiscovery(null);
     setActiveIndex(0);
     setZoom(1);
     setImmersive(false);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+    window.setTimeout(() => viewerRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 30);
+  };
+  const sharePhoto = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      void navigator.share({ title: selectedDiscovery?.title ?? entry.title, url }).catch(() => undefined);
+      return;
+    }
+    void navigator.clipboard?.writeText(url);
   };
   return createPortal(
     <motion.div className={`${styles.mediaBackdrop} ${relatedOpen ? styles.mediaBackdropExpanded : ""} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
-        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTOS"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3><a href={`/u/${encodeURIComponent(entry.author.username)}`} className={styles.mediaViewerAuthor}><span className={styles.mediaViewerAvatar}>{entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : entry.author.displayName.slice(0, 1)}</span><span><strong>{entry.author.displayName}</strong><small>@{entry.author.username}</small></span></a></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+      <motion.section ref={viewerRef} layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
+        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTO CLOSE-UP"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
           const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
           if (activeIndex !== nextIndex) setZoom(1);
           setActiveIndex(nextIndex);
         }}>
-          {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={toggleFullscreen} style={index === activeIndex ? { transform: `scale(${zoom})` } : undefined} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
+          <AnimatePresence initial={false}>{images.length ? images.map((image, index) => <motion.img key={`${image}-${index}`} src={image} alt={`${selectedDiscovery?.title ?? entry.title} photo ${index + 1}`} draggable={false} onClick={toggleFullscreen} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }} style={index === activeIndex ? { scale: zoom } : undefined} />) : <motion.div key="empty-media" className={styles.mediaEmpty} initial={{ opacity: 0 }} animate={{ opacity: 1 }}><ImageIcon size={32} /><span>No images added yet</span></motion.div>}</AnimatePresence>
         </div>
         <footer>
           <div className={styles.mediaFooterMain}><div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div><motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button></div>
+          <div className={styles.mediaCreatorBar}><a href={`/u/${encodeURIComponent(entry.author.username)}`} className={styles.mediaViewerAuthor}><span className={styles.mediaViewerAvatar}>{entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : entry.author.displayName.slice(0, 1)}</span><span><strong>{entry.author.displayName}</strong><small>@{entry.author.username}</small></span></a><button type="button" className={styles.mediaWishlistButton} onClick={onWishlist}><Repeat2 size={15} /> Wishlist</button></div>
           <div className={styles.mediaEngagement} aria-label="Photo engagement">
-            <button type="button" className={entry.likedByViewer ? styles.mediaEngagementActive : undefined} onClick={onLike}><Heart size={16} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
-            <button type="button" onClick={onComment}><MessageCircle size={16} /><span>{entry.commentCount}</span></button>
-            <button type="button" className={saved ? styles.mediaEngagementActive : undefined} onClick={() => setSaved((current) => !current)}><Bookmark size={16} fill={saved ? "currentColor" : "none"} /><span>{saved ? "Saved" : "Save"}</span></button>
-            <button type="button" onClick={onWishlist}><Repeat2 size={16} /><span>Wishlist</span></button>
+            <div><button type="button" className={entry.likedByViewer ? styles.mediaEngagementActive : undefined} onClick={onLike} aria-label="Like this photo"><Heart size={18} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button><button type="button" onClick={onComment} aria-label="Open comments"><MessageCircle size={18} /><span>{entry.commentCount}</span></button></div>
+            <div><button type="button" className={saved ? styles.mediaEngagementActive : undefined} onClick={() => setSaved((current) => !current)}><Bookmark size={18} fill={saved ? "currentColor" : "none"} /><span>{saved ? "Saved" : "Save"}</span></button><button type="button" onClick={sharePhoto} aria-label="Share this photo"><Share2 size={18} /></button></div>
           </div>
         </footer>
         <AnimatePresence initial={false}>
           {relatedOpen && <motion.aside id="media-related-discoveries" className={styles.mediaRelatedPanel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}>
-            <div className={styles.mediaRelatedHead}><div><span>MORE FROM THIS CATALOGUE</span><strong>Keep exploring</strong></div><small>{relatedDiscoveries.length} finds</small></div>
+            <div className={styles.mediaRelatedHead}><div><span>MORE FROM THIS CATALOGUE</span><strong>More like this</strong></div><small>{relatedDiscoveries.length} finds</small></div>
             <div className={styles.mediaRelatedMasonry}>
-              {relatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={styles.mediaRelatedCard} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Explore ${discovery.title}`}>
+              {relatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={`${styles.mediaRelatedCard} ${(selectedDiscovery?.id ?? `${entry.id}-current`) === discovery.id ? styles.mediaRelatedCardActive : ""}`} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Preview ${discovery.title}`}>
                 <img src={discovery.imageUrl} alt="" />
                 <span><small>{discovery.eyebrow}</small><strong>{discovery.title}</strong></span>
               </motion.button>)}
@@ -667,6 +687,15 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
           </motion.aside>}
         </AnimatePresence>
       </motion.section>
+      <AnimatePresence>
+        {previewDiscovery && <motion.div className={styles.mediaPinPreviewBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) setPreviewDiscovery(null); }}>
+          <motion.article className={styles.mediaPinPreview} initial={{ opacity: 0, y: 42, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30, scale: 0.96 }} transition={{ type: "spring", stiffness: 330, damping: 30 }} onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className={styles.mediaPinPreviewClose} onClick={() => setPreviewDiscovery(null)} aria-label="Close related image preview"><X size={19} /></button>
+            <img src={previewDiscovery.imageUrl} alt={previewDiscovery.title} />
+            <div><span>{previewDiscovery.eyebrow}</span><h4>{previewDiscovery.title}</h4><button type="button" onClick={() => showDiscoveryInViewer(previewDiscovery)}>Show in viewer</button></div>
+          </motion.article>
+        </motion.div>}
+      </AnimatePresence>
     </motion.div>,
     document.body,
   );
