@@ -189,3 +189,20 @@
   .commentMoreBackdrop { padding: 0; }
   .commentMoreSheet { width: 100%; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 21px 21px 0 0; }
 }
+
+/* Shared portal sheets stay above the mobile chrome. */
+.sheetBackdrop { z-index: 1100; }
+.wishlisterBackdrop { z-index: 1200; }
+.commentSortFilter { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dfe6d6; border-radius: 10px; background: linear-gradient(180deg, #fffefa, #f5f8ef); color: #52663a; padding: 7px 9px; box-shadow: 0 3px 10px rgb(43 55 29 / 8%); font-size: 11px; font-weight: 800; }
+.commentSortFilter:hover { background: #eef4e2; }
+.commentRow { position: relative; }
+.commentRow > div { position: relative; min-width: 0; padding-right: 27px; }
+.commentRowMore { position: absolute; top: -4px; right: 0; display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #8a9584; padding: 0; }
+.commentRowMore:hover { background: #eff3e8; color: #526d2d; }
+.commentRowActions { display: flex; align-items: center; gap: 18px; }
+.commentRowActions button { display: inline-flex; align-items: center; gap: 4px; color: #718064; }
+.commentRowActions .commentLiked { color: #b55260; }
+.followButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border-color: #26311f; border-radius: 11px 11px 11px 4px; background: #26311f; box-shadow: 0 7px 16px rgb(31 39 24 / 16%), inset 0 1px 0 rgb(255 255 255 / 16%); color: #f6f9e9; padding: 0 12px; }
+.followButton:hover { background: #38472a; color: #fff; }
+.followButton.following { border-color: #cad6b6; background: #edf3df; box-shadow: none; color: #5d713c; }
+.followButton.following:hover { background: #e2ecd0; }

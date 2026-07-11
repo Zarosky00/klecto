@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Bell,
   Bookmark,
+  Check,
+  ChevronDown,
   ChevronRight,
   Ellipsis,
   Eye,
@@ -21,6 +23,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   X,
+  UserPlus,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -397,7 +400,39 @@ function SourceOwner({ entry, demo }: { entry: DiscoveryFeedEntryDTO; demo: bool
 
 function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; pending: boolean; onClose: () => void; onSubmit: (body: string) => void }) {
   const [body, setBody] = useState("");
-  return (
+  const [commentFilter, setCommentFilter] = useState<"top" | "latest">("top");
+  const [likedComments, setLikedComments] = useState<Set<string>>(() => new Set());
+  const [savedComments, setSavedComments] = useState<Set<string>>(() => new Set());
+  const [menuTarget, setMenuTarget] = useState<DiscoveryCommentDTO | null>(null);
+  const pressTimer = useRef<number | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const comments = useMemo(() => [...entry.comments].sort((left, right) => commentFilter === "latest"
+    ? new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    : (right.likeCount ?? 0) - (left.likeCount ?? 0)), [commentFilter, entry.comments]);
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const rootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = rootOverflow;
+    };
+  }, []);
+  const startPress = (comment: DiscoveryCommentDTO) => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => setMenuTarget(comment), 520);
+  };
+  const cancelPress = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+  const replyTo = (comment: DiscoveryCommentDTO) => {
+    setMenuTarget(null);
+    setBody(`@${comment.author.username} `);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  };
+  return createPortal(
     <motion.div className={styles.sheetBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.aside className={`${styles.sheet} ${styles.commentDrawer}`} initial={{ x: 36, opacity: 0.7 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 36, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comments">
         <div className={styles.sheetHandle} />
@@ -407,22 +442,24 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
           <div><b>{entry.title}</b><small>{entrySource(entry)}</small></div>
           <a href={entry.sourceHref} aria-label="Open original"><ChevronRight size={18} /></a>
         </div>
-        <div className={styles.commentSort}><span>Top comments</span><small>{entry.comments.length ? "Open the original to view all" : "Start the conversation"}</small></div>
+        <div className={styles.commentSort}><button type="button" className={styles.commentSortFilter} onClick={() => setCommentFilter((current) => current === "top" ? "latest" : "top")}><span>{commentFilter === "top" ? "Top comments" : "Latest comments"}</span><ChevronDown size={14} /></button><small>{entry.comments.length ? "Tap to change sort" : "Start the conversation"}</small></div>
         <div className={styles.commentList}>
-          {entry.comments.map((comment) => (
-            <article key={comment.id} className={styles.commentRow}>
+          {comments.map((comment) => (
+            <article key={comment.id} className={styles.commentRow} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("a, button")) startPress(comment); }} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerMove={cancelPress}>
               {comment.author.avatarUrl ? <img src={comment.author.avatarUrl} alt="" /> : <span>{comment.author.displayName.slice(0, 1)}</span>}
-              <div><strong>{comment.author.displayName}<small>@{comment.author.username} / {relativeTime(comment.createdAt)}</small></strong><p>{comment.body}</p><button type="button" onClick={() => setBody((current) => current ? current : `@${comment.author.username} `)}>Reply</button></div>
+              <div><strong>{comment.author.displayName}<small>@{comment.author.username} / {relativeTime(comment.createdAt)}</small></strong><button type="button" className={styles.commentRowMore} onPointerDown={cancelPress} onClick={() => setMenuTarget(comment)} aria-label="More comment options"><Ellipsis size={16} /></button><p>{comment.body}</p><div className={styles.commentRowActions}><button type="button" className={likedComments.has(comment.id) ? styles.commentLiked : undefined} onClick={() => setLikedComments((current) => { const next = new Set(current); if (next.has(comment.id)) next.delete(comment.id); else next.add(comment.id); return next; })}><Heart size={14} fill={likedComments.has(comment.id) ? "currentColor" : "none"} /> {(comment.likeCount ?? 0) + (likedComments.has(comment.id) ? 1 : 0)}</button><button type="button" onClick={() => replyTo(comment)}>Reply</button></div></div>
             </article>
           ))}
           {!entry.comments.length && <div className={styles.commentEmpty}><MessageCircle size={20} /><span>No replies yet. Be the first to add to this shelf.</span></div>}
         </div>
         <form className={styles.commentComposer} onSubmit={(event) => { event.preventDefault(); onSubmit(body); }}>
-          <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add to the conversation..." maxLength={2000} autoFocus />
+          <textarea ref={inputRef} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add to the conversation..." maxLength={2000} autoFocus />
           <footer><span>{body.length}/2000</span><button type="submit" disabled={!body.trim() || pending}><Send size={16} /> Reply</button></footer>
         </form>
+        {menuTarget && <CommentActionSheet comment={menuTarget} saved={savedComments.has(menuTarget.id)} onClose={() => setMenuTarget(null)} onReply={() => replyTo(menuTarget)} onSave={() => setSavedComments((current) => { const next = new Set(current); if (next.has(menuTarget.id)) next.delete(menuTarget.id); else next.add(menuTarget.id); return next; })} />}
       </motion.aside>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
@@ -638,7 +675,7 @@ function PostDetail({ entry, demo, viewer, pending, onClose, onLike, onWishlist,
               {entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : <span>{entry.author.displayName.slice(0, 1)}</span>}
               <div><b>{entry.author.displayName}</b><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></div>
             </a>
-            {canFollow && <button type="button" className={`${styles.followButton} ${isFollowing ? styles.following : ""}`} onClick={() => setIsFollowing((current) => !current)}>{isFollowing ? "Following" : "Follow"}</button>}
+            {canFollow && <button type="button" className={`${styles.followButton} ${isFollowing ? styles.following : ""}`} onClick={() => setIsFollowing((current) => !current)}>{isFollowing ? <><Check size={14} /> Following</> : <><UserPlus size={14} /> Follow</>}</button>}
           </div>
           {entry.kind === "wishlist" && <div className={styles.postWishlisted}><Repeat2 size={15} /> Wishlisted this {kindLabels[entry.targetKind].toLowerCase()}</div>}
           {entry.kind === "wishlist" && <SourceOwner entry={entry} demo={demo} />}
@@ -691,7 +728,7 @@ function EngagementSheet({ entry, kind, demo, onClose }: { entry: DiscoveryFeedE
   const collectors: DiscoveryAuthorDTO[] = kind === "likes" ? entry.likers : entry.wishlisters;
   const count = kind === "likes" ? entry.likeCount : entry.wishlistCount;
   const label = kind === "likes" ? "LIKED BY" : "WISHLISTED BY";
-  return (
+  return createPortal(
     <motion.div className={styles.wishlisterBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section className={styles.wishlisterSheet} initial={{ y: 26, opacity: 0.75 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 26, opacity: 0.75 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${label.toLowerCase()} ${entry.title}`}>
         <header><div><span>{label}</span><h3>{count} collectors</h3></div><button type="button" onClick={onClose} aria-label="Close"><X size={19} /></button></header>
@@ -706,7 +743,8 @@ function EngagementSheet({ entry, kind, demo, onClose }: { entry: DiscoveryFeedE
           {!collectors.length && <div className={styles.wishlisterEmpty}>{kind === "likes" ? "Like details are private for this post." : "No public wishlist accounts yet."}</div>}
         </div>
       </motion.section>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
@@ -715,7 +753,7 @@ function CommentActionSheet({ comment, saved, onClose, onReply, onSave }: { comm
     void navigator.clipboard?.writeText(comment.body);
     onClose();
   };
-  return (
+  return createPortal(
     <motion.div className={styles.commentMoreBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section className={styles.commentMoreSheet} initial={{ y: 28, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 28, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Comment options">
         <div className={styles.sheetHandle} />
@@ -725,13 +763,24 @@ function CommentActionSheet({ comment, saved, onClose, onReply, onSave }: { comm
         <button type="button" onClick={() => { onSave(); onClose(); }}><Bookmark size={17} /> {saved ? "Remove saved comment" : "Save comment"}</button>
         <button type="button" className={styles.commentMoreDanger} onClick={onClose}><Ellipsis size={17} /> Report comment</button>
       </motion.section>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
 function WishlistComposer({ entry, viewer, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; viewer: ViewerDTO | null; pending: boolean; onClose: () => void; onSubmit: (quote: string) => void }) {
   const [quote, setQuote] = useState("");
-  return (
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const rootOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = rootOverflow;
+    };
+  }, []);
+  return createPortal(
     <motion.div className={styles.sheetBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section className={styles.sheet} initial={{ y: 40, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()}>
         <div className={styles.sheetHandle} />
@@ -740,6 +789,7 @@ function WishlistComposer({ entry, viewer, pending, onClose, onSubmit }: { entry
         <label className={styles.quoteLabel}>YOUR NOTE <em>optional</em><textarea value={quote} onChange={(event) => setQuote(event.target.value)} placeholder={viewer ? "Why do you want this?" : "Sign in to post a quote"} maxLength={600} /></label>
         <footer><span>{quote.length}/600</span><button type="button" disabled={pending} onClick={() => onSubmit(quote)}><Repeat2 size={16} /> {viewer ? "Wishlist" : "Sign in to wishlist"}</button></footer>
       </motion.section>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
