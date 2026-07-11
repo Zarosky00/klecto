@@ -357,7 +357,7 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
   const sourceCard = (
     <>
       <a href={entry.sourceHref} className={`collection-label ${styles.collectionLabel}`}>
-        <span><KindIcon kind={entry.targetKind} /></span><span>{entrySource(entry)}</span><b>{kindLabels[entry.targetKind]}</b><ChevronRight size={14} />
+        <span className={styles.collectionTypeIcon}><KindIcon kind={entry.targetKind} /></span><span className={styles.collectionLabelText}><small>{kindLabels[entry.targetKind]}</small><strong>{entrySource(entry)}</strong></span><ChevronRight size={15} />
       </a>
       <h2>{entry.title}</h2>
       {entry.description && <p className="post-copy">{entry.description}</p>}
