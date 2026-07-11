@@ -615,6 +615,7 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
     const now = Date.now();
     if (now - lastImageTap.current < 320) return;
     lastImageTap.current = now;
+    setRelatedOpen(false);
     setImmersive((active) => !active);
   };
   const exploreDiscovery = (discovery: ViewerDiscovery) => {
