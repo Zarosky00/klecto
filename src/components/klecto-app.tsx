@@ -44,8 +44,10 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { CatalogDashboardDTO, CollectionDTO, ViewerDTO, Visibility } from "@/lib/catalog-types";
+import { createCollectionAction, deleteCollectionAction, updateCollectionAction } from "@/app/actions/catalog";
+import { createClient } from "@/lib/supabase/client";
 import {
   collectionCards,
   comments,
@@ -91,6 +93,7 @@ type ChatMessage = {
   direction: "received" | "sent";
   replyTo?: string;
 };
+type CollectionCoverDraft = { file: File; previewUrl: string };
 
 const navItems: { id: View; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Home", icon: Home },
@@ -109,8 +112,8 @@ const moodLabels = {
 
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=85";
 
-export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO }) {
-  const [view, setView] = useState<View>("home");
+export function KlectoApp({ initialData, initialView = "home" }: { initialData: CatalogDashboardDTO; initialView?: View }) {
+  const [view, setView] = useState<View>(initialView);
   const [feedMode, setFeedMode] = useState<"For you" | "Following">("For you");
   const [filter, setFilter] = useState<FeedFilter>("Everything");
   const [liked, setLiked] = useState<string[]>(["chair-1"]);
@@ -120,6 +123,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   const [mobileMenu, setMobileMenu] = useState(false);
   const [collectorPreview, setCollectorPreview] = useState<CollectorPreview | null>(null);
   const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
+  const [collectionComposerOpen, setCollectionComposerOpen] = useState(false);
 
   const openFeedCollection = (item: FeedItem) => {
     const collectionName = item.collection.split("/")[0]?.trim() || item.collection;
@@ -158,6 +162,10 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
   };
 
   const openCreate = (mode?: "collection" | "item") => {
+    if (mode === "collection") {
+      setCollectionComposerOpen(true);
+      return;
+    }
     window.location.href = mode ? `/create?mode=${mode}` : "/create";
   };
 
@@ -192,6 +200,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
       </AnimatePresence>
 
       <motion.main className="main-column" initial={{ opacity: 0, y: 20, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.06, duration: 0.56, ease: [0.16, 1, 0.3, 1] }}>
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
             {view === "home" && (
               <HomeView
@@ -217,6 +226,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}
             {view === "profile" && <PremiumProfileView onOpenCollection={setCollectionPreview} viewer={initialData.viewer} collections={initialData.collections} />}
           </motion.div>
+        </AnimatePresence>
       </motion.main>
 
       <PremiumContextRail view={view} navigate={navigate} onOpenCollector={setCollectorPreview} />
@@ -232,6 +242,7 @@ export function KlectoApp({ initialData }: { initialData: CatalogDashboardDTO })
       {commentItem && <PremiumCommentDrawer item={commentItem} onClose={() => setCommentItem(null)} />}
       {collectorPreview && <CollectorProfileSheet collector={collectorPreview} onClose={() => setCollectorPreview(null)} onOpenCollection={setCollectionPreview} />}
       {collectionPreview && <CollectionPreviewSheet collection={collectionPreview} onClose={() => setCollectionPreview(null)} onOpenOwner={setCollectorPreview} />}
+      <AnimatePresence>{collectionComposerOpen ? <QuickCollectionComposer data={initialData} onClose={() => setCollectionComposerOpen(false)} /> : null}</AnimatePresence>
     </motion.div>
     </MotionConfig>
   );
@@ -452,6 +463,7 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
       visibility: collection.privacy.toLowerCase() as Visibility,
       itemCount: collection.count,
       subcollectionNames: collection.subtitle.split(",").map((entry) => entry.trim()).filter(Boolean),
+      subcollectionCount: collection.slug === "childhood-things" ? 3 : collection.subtitle.split(",").map((entry) => entry.trim()).filter(Boolean).length,
       updatedAt: "2026-07-09T10:20:00.000Z",
       href: `/demo/collections/${collection.slug}`,
     }));
@@ -464,6 +476,7 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
       visibility: collection.visibility,
       itemCount: collection.items.length,
       subcollectionNames: collection.subcollections.map((entry) => entry.name),
+      subcollectionCount: collection.subcollections.length,
       updatedAt: collection.updatedAt,
       href: `/collections/${collection.id}`,
     }))
@@ -498,14 +511,139 @@ function CollectionsView({ onCreate, data }: { onCreate: () => void; data: Catal
       <div className="collection-grid">
         {visibleCards.map((collection, index) => (
           <motion.article className="collection-card" key={collection.id} initial={{ opacity: 0, y: 20, scale: 0.985 }} animate={{ opacity: 0.999, y: 0, scale: 1 }} whileHover={{ y: -5 }} transition={{ delay: index * 0.06, duration: 0.44, ease: [0.16, 1, 0.3, 1] }} onClick={() => { window.location.href = collection.href; }}>
-            <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.itemCount}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
-            <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollectionNames.slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.itemCount} items</span><ChevronRight size={17} /></div></div>
+            <div className={`collection-image ${collection.coverUrl ? "" : "placeholder"}`}>{collection.coverUrl ? <img src={collection.coverUrl} alt="" /> : <strong>{collection.name.slice(0, 2).toUpperCase()}</strong>}<span style={{ background: ["#f0ff9b", "#d7e6ff", "#ffd4c8", "#e8dcff"][index % 4] }}>{collection.subcollectionCount}</span>{collection.visibility === "private" && <i><LockKeyhole size={13} /></i>}</div>
+            <div className="collection-card-body"><small>{collection.visibility}</small><h2>{collection.name}</h2><p>{collection.subcollectionNames.slice(0, 3).join(", ") || collection.description || "Ready for the first item"}</p><div><span>{collection.subcollectionCount} subcollection{collection.subcollectionCount === 1 ? "" : "s"}</span><ChevronRight size={17} /></div></div>
           </motion.article>
         ))}
         {visibleCards.length === 0 && <div className="catalog-empty"><Layers3 size={24} /><strong>No collections match that view.</strong><p>Try another search or clear your filters to see the rest of your shelves.</p></div>}
         <button className="new-collection-card" onClick={onCreate}><span><Plus size={24} /></span><strong>Start something new</strong><small>Use a category or name your own.</small></button>
       </div>
     </>
+  );
+}
+
+function QuickCollectionComposer({ data, onClose }: { data: CatalogDashboardDTO; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [visibility, setVisibility] = useState<Visibility>("public");
+  const [cover, setCover] = useState<CollectionCoverDraft | null>(null);
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
+  useEffect(() => () => {
+    if (cover?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(cover.previewUrl);
+  }, [cover]);
+
+  const chooseCover = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
+      setError("Choose an image under 15 MB for the cover.");
+      return;
+    }
+    setCover({ file, previewUrl: URL.createObjectURL(file) });
+    setError("");
+  };
+
+  const publish = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const viewer = data.viewer;
+    if (!viewer) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!name.trim()) {
+      setError("Give the collection a name first.");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createCollectionAction({
+        name,
+        description: description.trim() || null,
+        templateId: templateId || null,
+        visibility,
+      });
+      if (!result.ok || !result.id) {
+        setError(result.error ?? "This collection could not be created.");
+        return;
+      }
+
+      if (cover) {
+        let coverPath: string | null = null;
+        try {
+          const extension = (cover.file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+          coverPath = `${viewer.id}/collections/${result.id}/cover-${crypto.randomUUID()}.${extension}`;
+          const storage = createClient().storage.from("collection-media");
+          const { error: uploadError } = await storage.upload(coverPath, cover.file, {
+            cacheControl: "31536000",
+            contentType: cover.file.type,
+            upsert: false,
+          });
+          if (uploadError) throw new Error("The cover could not be uploaded.");
+
+          const saved = await updateCollectionAction({
+            id: result.id,
+            name,
+            description: description.trim() || null,
+            templateId: templateId || null,
+            visibility,
+            coverPath,
+          });
+          if (!saved.ok) throw new Error(saved.error ?? "The cover could not be saved.");
+        } catch (submissionError) {
+          await deleteCollectionAction(result.id);
+          if (coverPath) await createClient().storage.from("collection-media").remove([coverPath]);
+          setError(submissionError instanceof Error ? submissionError.message : "The collection could not be saved.");
+          return;
+        }
+      }
+
+      window.location.href = `/collections/${result.id}`;
+    });
+  };
+
+  return (
+    <motion.div className="quick-collection-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} role="presentation">
+      <motion.section
+        className="quick-collection-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-collection-title"
+        initial={{ opacity: 0, y: 34, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 26, scale: 0.985 }}
+        transition={{ type: "spring", damping: 28, stiffness: 330 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="quick-collection-header">
+          <div><span className="eyebrow">NEW COLLECTION</span><h2 id="quick-collection-title">Start a collection</h2><p>Set the cover and first details here. Add shelves and pieces after.</p></div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close collection creator"><X size={20} /></button>
+        </header>
+
+        <form className="quick-collection-form" onSubmit={publish}>
+          <label className="quick-collection-cover">
+            <span className="quick-collection-cover-preview">{cover ? <img src={cover.previewUrl} alt="Collection cover preview" /> : <ImagePlus size={26} />}</span>
+            <span><strong>{cover ? "Change cover" : "Choose a cover"}</strong><small>Optional · JPG, PNG, WEBP, AVIF, or HEIC</small></span>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic" onChange={(event) => { chooseCover(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+          </label>
+          <label className="quick-collection-field"><span>Collection name</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="e.g. Childhood things" autoFocus /></label>
+          <label className="quick-collection-field"><span>Story <small>optional</small></span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} placeholder="A few words about what belongs here." /></label>
+          <div className="quick-collection-options">
+            <label className="quick-collection-field"><span>Starting point</span><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}><option value="">Custom collection</option>{data.templates.map((template) => <option key={template.id} value={template.id}>{template.icon} {template.name}</option>)}</select></label>
+            <label className="quick-collection-field"><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label>
+          </div>
+          {error ? <p className="quick-collection-error" role="alert">{error}</p> : null}
+          <footer className="quick-collection-actions"><button type="button" className="text-button" onClick={onClose}>Cancel</button><button type="submit" className="primary-button" disabled={pending || Boolean(data.viewer && !name.trim())}>{pending ? "Creating…" : data.viewer ? "Create collection" : "Sign in to create"}<ChevronRight size={17} /></button></footer>
+        </form>
+      </motion.section>
+    </motion.div>
   );
 }
 

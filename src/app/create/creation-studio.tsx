@@ -41,6 +41,9 @@ type CreationStudioProps = {
   initialMode?: string;
   initialCollectionId?: string;
   initialSubcollectionId?: string;
+  /** Locks the studio to a single creation mode for focused entry points. */
+  fixedMode?: CreateMode;
+  backHref?: string;
 };
 
 const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/heic"]);
@@ -76,12 +79,14 @@ export function CreationStudio({
   initialMode,
   initialCollectionId,
   initialSubcollectionId,
+  fixedMode,
+  backHref,
 }: CreationStudioProps) {
   const router = useRouter();
   const requestedCollection = initialData.collections.find((collection) => collection.id === initialCollectionId);
   const fallbackCollection = requestedCollection ?? initialData.collections[0] ?? null;
 
-  const [mode, setMode] = useState<CreateMode>(() => getInitialMode(initialMode));
+  const [mode, setMode] = useState<CreateMode>(() => fixedMode ?? getInitialMode(initialMode));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [collectionId, setCollectionId] = useState(fallbackCollection?.id ?? "");
@@ -120,7 +125,7 @@ export function CreationStudio({
   );
 
   const changeMode = (nextMode: CreateMode) => {
-    if (pending || mode === nextMode) return;
+    if (fixedMode || pending || mode === nextMode) return;
     setMode(nextMode);
     setError("");
   };
@@ -402,9 +407,9 @@ export function CreationStudio({
   };
 
   return (
-    <main className="create-studio-page" data-mode={mode}>
+    <main className={`create-studio-page${fixedMode ? " create-studio-page--focused" : ""}`} data-mode={mode}>
       <header className="create-studio-topbar">
-        <Link href="/" className="create-studio-back-link"><ArrowLeft size={17} /> Back to Klecto</Link>
+        <Link href={backHref ?? "/"} className="create-studio-back-link"><ArrowLeft size={17} /> Back to Klecto</Link>
         <Link href="/" className="create-studio-wordmark" aria-label="Klecto home"><span>K</span> klecto</Link>
         <div className="create-studio-user-note">
           <Sparkles size={15} /> {signedIn ? `Writing as @${initialData.viewer?.username}` : "Your story, your shelf"}
@@ -412,31 +417,41 @@ export function CreationStudio({
       </header>
 
       <section className="create-studio-shell">
-        <div className="create-studio-intro">
-          <span className="create-studio-eyebrow">ADD TO YOUR WORLD</span>
-          <h1>Make room for something worth keeping.</h1>
-          <p>Compose it like a post, then place it exactly where it belongs.</p>
-        </div>
+        {fixedMode ? (
+          <div className="create-studio-intro create-studio-focused-intro">
+            <span className="create-studio-eyebrow">NEW COLLECTION</span>
+            <h1>Start a collection.</h1>
+            <p>Shape the place first. You can add shelves and items once it feels right.</p>
+          </div>
+        ) : (
+          <>
+            <div className="create-studio-intro">
+              <span className="create-studio-eyebrow">ADD TO YOUR WORLD</span>
+              <h1>Make room for something worth keeping.</h1>
+              <p>Compose it like a post, then place it exactly where it belongs.</p>
+            </div>
 
-        <nav className="create-studio-mode-tabs" aria-label="Choose what to create">
-          {(Object.keys(modeCopy) as CreateMode[]).map((entry) => {
-            const Icon = entry === "collection" ? Layers3 : entry === "subcollection" ? Plus : ImagePlus;
-            return (
-              <button
-                type="button"
-                key={entry}
-                className={`create-studio-mode-button ${mode === entry ? "is-active" : ""}`}
-                onClick={() => changeMode(entry)}
-                aria-pressed={mode === entry}
-                disabled={pending}
-              >
-                <span className="create-studio-mode-icon"><Icon size={19} /></span>
-                <span><strong>{modeCopy[entry].label}</strong><small>{modeCopy[entry].hint}</small></span>
-                {mode === entry ? <Check size={17} className="create-studio-mode-check" /> : null}
-              </button>
-            );
-          })}
-        </nav>
+            <nav className="create-studio-mode-tabs" aria-label="Choose what to create">
+              {(Object.keys(modeCopy) as CreateMode[]).map((entry) => {
+                const Icon = entry === "collection" ? Layers3 : entry === "subcollection" ? Plus : ImagePlus;
+                return (
+                  <button
+                    type="button"
+                    key={entry}
+                    className={`create-studio-mode-button ${mode === entry ? "is-active" : ""}`}
+                    onClick={() => changeMode(entry)}
+                    aria-pressed={mode === entry}
+                    disabled={pending}
+                  >
+                    <span className="create-studio-mode-icon"><Icon size={19} /></span>
+                    <span><strong>{modeCopy[entry].label}</strong><small>{modeCopy[entry].hint}</small></span>
+                    {mode === entry ? <Check size={17} className="create-studio-mode-check" /> : null}
+                  </button>
+                );
+              })}
+            </nav>
+          </>
+        )}
 
         <div className="create-studio-layout">
           <form className="create-studio-composer" onSubmit={(event) => { event.preventDefault(); publish(); }}>
