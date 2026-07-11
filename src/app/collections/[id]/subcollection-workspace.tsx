@@ -1,13 +1,14 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   Camera,
   Check,
+  Eye,
   Heart,
   ImagePlus,
   Layers3,
@@ -32,6 +33,7 @@ import {
   createCatalogCommentAction,
   deleteItemAction,
   deleteSubcollectionAction,
+  recordCatalogViewAction,
   setItemLikeAction,
   setSubcollectionLikeAction,
   updateItemAction,
@@ -48,8 +50,8 @@ import type {
 } from "@/lib/catalog-types";
 
 type Notice = { type: "error" | "success"; text: string } | null;
-type ReactionState = { liked: boolean; likes: number; comments: number };
-type CommentTarget = { type: "item" | "subcollection"; id: string; title: string };
+type ReactionState = { liked: boolean; likes: number; comments: number; views: number };
+export type CommentTarget = { type: "collection" | "item" | "subcollection"; id: string; title: string };
 type ItemMenuTarget = ItemDTO | null;
 type DeleteRequest = { type: "item"; item: ItemDTO } | { type: "subcollection" };
 
@@ -68,6 +70,7 @@ function reactionMap(items: ItemDTO[]) {
     liked: item.likedByViewer,
     likes: item.likeCount,
     comments: item.commentCount,
+    views: item.viewCount,
   }])) as Record<string, ReactionState>;
 }
 
@@ -87,6 +90,7 @@ export function SubcollectionWorkspace({
     liked: subcollection.likedByViewer,
     likes: subcollection.likeCount,
     comments: subcollection.commentCount,
+    views: subcollection.viewCount,
   });
   const items = collection.items
     .filter((item) => item.subcollectionId === subcollection.id)
@@ -108,6 +112,11 @@ export function SubcollectionWorkspace({
   const coverHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coverMenuWasOpened = useRef(false);
   const effectiveVisibility = subcollection.visibility ?? collection.visibility;
+
+  useEffect(() => {
+    void recordCatalogViewAction({ targetType: "subcollection", targetId: subcollection.id });
+  }, [subcollection.id]);
+
   const normalizedItemQuery = itemQuery.trim().toLocaleLowerCase();
   const visibleItems = items
     .filter((item) => {
@@ -145,7 +154,7 @@ export function SubcollectionWorkspace({
   };
 
   const toggleItemLike = (item: ItemDTO) => {
-    const prior = itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 };
+    const prior = itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0, views: item.viewCount };
     const next = { ...prior, liked: !prior.liked, likes: prior.likes + (prior.liked ? -1 : 1) };
     setItemReactions((current) => ({ ...current, [item.id]: next }));
     startTransition(async () => {
@@ -174,6 +183,7 @@ export function SubcollectionWorkspace({
     startTransition(async () => {
       const result = await createCatalogCommentAction({
         collectionId: collection.id,
+        targetCollectionId: target.type === "collection" ? target.id : null,
         itemId: target.type === "item" ? target.id : null,
         subcollectionId: target.type === "subcollection" ? target.id : null,
         body,
@@ -185,6 +195,7 @@ export function SubcollectionWorkspace({
       const commentId = result.id;
       setComments((current) => [...current, {
         id: commentId,
+        collectionId: target.type === "collection" ? target.id : null,
         itemId: target.type === "item" ? target.id : null,
         subcollectionId: target.type === "subcollection" ? target.id : null,
         authorId: viewer.id,
@@ -195,9 +206,9 @@ export function SubcollectionWorkspace({
       if (target.type === "item") {
         setItemReactions((current) => ({
           ...current,
-          [target.id]: { ...(current[target.id] ?? { liked: false, likes: 0, comments: 0 }), comments: (current[target.id]?.comments ?? 0) + 1 },
+          [target.id]: { ...(current[target.id] ?? { liked: false, likes: 0, comments: 0, views: 0 }), comments: (current[target.id]?.comments ?? 0) + 1 },
         }));
-      } else {
+      } else if (target.type === "subcollection") {
         setSubcollectionReaction((current) => ({ ...current, comments: current.comments + 1 }));
       }
     });
@@ -235,7 +246,7 @@ export function SubcollectionWorkspace({
   };
 
   const shareSubcollection = async () => {
-    const url = `${window.location.origin}/u/${viewer.username}#collection-${collection.slug}`;
+    const url = `${window.location.origin}/u/${viewer.username}/collections/${collection.slug}`;
     try {
       const nativeShare = Reflect.get(navigator, "share") as unknown;
       if (typeof nativeShare === "function") await nativeShare.call(navigator, { title: `${subcollection.name} · ${collection.name}`, url });
@@ -248,7 +259,7 @@ export function SubcollectionWorkspace({
   };
 
   const shareItem = async (item: ItemDTO) => {
-    const url = `${window.location.origin}/u/${viewer.username}#item-${item.id}`;
+    const url = `${window.location.origin}/u/${viewer.username}/collections/${collection.slug}`;
     try {
       const nativeShare = Reflect.get(navigator, "share") as unknown;
       if (typeof nativeShare === "function") {
@@ -287,7 +298,7 @@ export function SubcollectionWorkspace({
 
         <div className="subcollection-info-bar">
           <div><strong>{items.length}</strong><span>{items.length === 1 ? "item" : "items"}</span></div><div><strong>{String(subcollection.position + 1).padStart(2, "0")}</strong><span>in collection</span></div><div><strong>{dateLabel(collection.updatedAt)}</strong><span>last update</span></div>
-          <div className="catalog-reactions subcollection-reactions"><button className={subcollectionReaction.liked ? "liked" : ""} disabled={pending} onClick={toggleSubcollectionLike}><Heart size={17} fill={subcollectionReaction.liked ? "currentColor" : "none"} /> {subcollectionReaction.likes}</button><button onClick={() => setCommentTarget({ type: "subcollection", id: subcollection.id, title: subcollection.name })}><MessageCircle size={17} /> {subcollectionReaction.comments}</button><button onClick={() => void shareSubcollection()}><Share2 size={17} /></button></div>
+          <div className="catalog-reactions subcollection-reactions"><button className={subcollectionReaction.liked ? "liked" : ""} disabled={pending} onClick={toggleSubcollectionLike}><Heart size={17} fill={subcollectionReaction.liked ? "currentColor" : "none"} /> {subcollectionReaction.likes}</button><button onClick={() => setCommentTarget({ type: "subcollection", id: subcollection.id, title: subcollection.name })}><MessageCircle size={17} /> {subcollectionReaction.comments}</button><span className="catalog-view-count" aria-label={`${subcollectionReaction.views} subcollection views`}><Eye size={16} /> {subcollectionReaction.views}</span><button onClick={() => void shareSubcollection()}><Share2 size={17} /></button></div>
         </div>
       </section>
 
@@ -300,14 +311,14 @@ export function SubcollectionWorkspace({
         </div>
         <div className="subcollection-item-results"><span>{visibleItems.length === items.length ? `${items.length} ${items.length === 1 ? "object" : "objects"}` : `${visibleItems.length} of ${items.length} objects`}</span>{hasActiveItemFilters ? <button type="button" onClick={() => { setItemQuery(""); setItemSort("recent"); setItemVisibilityFilter("all"); setFavouritesOnly(false); }}>Clear view</button> : null}</div>
         <div className="subcollection-item-grid">
-          {visibleItems.map((item, index) => <SubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 }} pending={pending} onToggleLike={() => toggleItemLike(item)} onComment={() => setCommentTarget({ type: "item", id: item.id, title: item.title })} onOpenDetail={() => setItemDetail(item)} onOpenMenu={() => setItemMenu(item)} />)}
+          {visibleItems.map((item, index) => <SubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0, views: item.viewCount }} pending={pending} onToggleLike={() => toggleItemLike(item)} onComment={() => setCommentTarget({ type: "item", id: item.id, title: item.title })} onOpenDetail={() => { setItemDetail(item); void recordCatalogViewAction({ targetType: "item", targetId: item.id }); }} onOpenMenu={() => setItemMenu(item)} />)}
           {items.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>This subcollection is ready.</strong><p>Add an item from Klecto and choose this subcollection to place it here.</p></div> : null}
           {items.length > 0 && visibleItems.length === 0 ? <div className="studio-empty"><Search size={24} /><strong>No objects match that view.</strong><p>Try a different search or clear the filters.</p></div> : null}
         </div>
       </section>
 
       <AnimatePresence>
-        {itemDetail ? <CatalogItemDetailSheetInteractive item={itemDetail} collection={collection} subcollection={subcollection} viewer={viewer} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} pending={pending} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail)} onComment={() => setCommentTarget({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onItemUpdated={(updated) => { setItemDetail(updated); setNotice({ type: "success", text: "Item details saved." }); router.refresh(); }} onDelete={() => setDeleteRequest({ type: "item", item: itemDetail })} /> : null}
+        {itemDetail ? <CatalogItemDetailSheetInteractive item={itemDetail} collection={collection} subcollection={subcollection} viewer={viewer} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0, views: itemDetail.viewCount }} pending={pending} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail)} onComment={() => setCommentTarget({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onItemUpdated={(updated) => { setItemDetail(updated); setNotice({ type: "success", text: "Item details saved." }); router.refresh(); }} onDelete={() => setDeleteRequest({ type: "item", item: itemDetail })} /> : null}
         {commentTarget ? <CatalogCommentSheet target={commentTarget} viewer={viewer} comments={comments} pending={pending} onClose={() => setCommentTarget(null)} onSubmit={submitComment} /> : null}
         {itemMenu ? <CatalogActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => { setDeleteRequest({ type: "item", item: itemMenu }); setItemMenu(null); }} /> : null}
         {subcollectionMenuOpen ? <CatalogActionSheet title={subcollection.name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={shareSubcollection} onDelete={() => setDeleteRequest({ type: "subcollection" })} /> : null}
@@ -336,13 +347,13 @@ function SubcollectionItemCard({ item, order, reaction, pending, onToggleLike, o
     }
     onOpenDetail();
   };
-  return <motion.article className="subcollection-item-card" role="button" tabIndex={0} aria-label={`Open ${item.title}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }} onPointerDown={beginHold} onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold} onPointerMove={clearHold} onContextMenu={(event) => event.preventDefault()} onClick={openDetail} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(); } }} whileTap={{ scale: 0.992 }}><ItemMediaCarousel item={item} /><div className="subcollection-item-copy"><div className="subcollection-item-line"><span>#{String(order).padStart(2, "0")}</span><button onClick={(event) => { event.stopPropagation(); onOpenMenu(); }} aria-label={`More options for ${item.title}`}><MoreHorizontal size={17} /></button></div><small>{item.tags[0] || item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" · ") : [item.model, item.year, item.condition].filter(Boolean).join(" · ") || item.description || "Catalogued object"}</p><div className="catalog-reactions"><button className={reaction.liked ? "liked" : ""} disabled={pending} onClick={(event) => { event.stopPropagation(); onToggleLike(); }}><Heart size={16} fill={reaction.liked ? "currentColor" : "none"} /> {reaction.likes}</button><button onClick={(event) => { event.stopPropagation(); onComment(); }}><MessageCircle size={16} /> {reaction.comments}</button></div></div></motion.article>;
+  return <motion.article className="subcollection-item-card" role="button" tabIndex={0} aria-label={`Open ${item.title}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }} onPointerDown={beginHold} onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold} onPointerMove={clearHold} onContextMenu={(event) => event.preventDefault()} onClick={openDetail} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(); } }} whileTap={{ scale: 0.992 }}><ItemMediaCarousel item={item} viewCount={reaction.views} /><div className="subcollection-item-copy"><div className="subcollection-item-line"><span>#{String(order).padStart(2, "0")}</span><button onClick={(event) => { event.stopPropagation(); onOpenMenu(); }} aria-label={`More options for ${item.title}`}><MoreHorizontal size={17} /></button></div><small>{item.tags[0] || item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" · ") : [item.model, item.year, item.condition].filter(Boolean).join(" · ") || item.description || "Catalogued object"}</p><div className="catalog-reactions"><button className={reaction.liked ? "liked" : ""} disabled={pending} onClick={(event) => { event.stopPropagation(); onToggleLike(); }}><Heart size={16} fill={reaction.liked ? "currentColor" : "none"} /> {reaction.likes}</button><button onClick={(event) => { event.stopPropagation(); onComment(); }}><MessageCircle size={16} /> {reaction.comments}</button></div></div></motion.article>;
 }
 
-function ItemMediaCarousel({ item }: { item: ItemDTO }) {
+function ItemMediaCarousel({ item, viewCount }: { item: ItemDTO; viewCount: number }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const images = item.imageUrls.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [];
-  return <div className="item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.round(event.currentTarget.scrollLeft / width)); }}>{images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${item.title}, photo ${index + 1}`} />) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
+  return <div className="item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.round(event.currentTarget.scrollLeft / width)); }}>{images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${item.title}, photo ${index + 1}`} />) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}<span className="catalog-view-count item-view-count" aria-label={`${viewCount} item views`}><Eye size={14} /> {viewCount}</span></div>;
 }
 
 function CatalogItemDetailSheet({ item, collection, subcollection, reaction, pending, onClose, onToggleLike, onComment, onShare, onEdit, onDelete }: { item: ItemDTO; collection: CollectionDTO; subcollection: SubcollectionDTO; reaction: ReactionState; pending: boolean; onClose: () => void; onToggleLike: () => void; onComment: () => void; onShare: () => void; onEdit: () => void; onDelete: () => void }) {
@@ -356,6 +367,7 @@ function CatalogItemDetailSheet({ item, collection, subcollection, reaction, pen
     { label: "Tags", value: item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" · ") : null },
     { label: "Mood", value: item.mood },
     { label: "Visibility", value: visibilityLabel(item.visibility ?? collection.visibility) },
+    { label: "Views", value: String(reaction.views) },
     { label: "Added", value: dateLabel(item.createdAt) },
     { label: "Photos", value: `${images.length} ${images.length === 1 ? "photo" : "photos"}` },
   ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
@@ -367,11 +379,15 @@ function CatalogActionSheet({ title, subtitle, onClose, onEdit, onShare, onDelet
   return <motion.div className="catalog-action-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-action-sheet" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 14, scale: 0.98 }} transition={{ type: "spring", damping: 27, stiffness: 320 }} onClick={(event) => event.stopPropagation()}><span className="eyebrow">{subtitle}</span><h2>{title}</h2><button onClick={onEdit}><Pencil size={18} /> Edit</button><button onClick={onShare}><Share2 size={18} /> Share</button><button className="danger" onClick={onDelete}><Trash2 size={18} /> Delete</button><button className="cancel" onClick={onClose}>Cancel</button></motion.section></motion.div>;
 }
 
-function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSubmit }: { target: CommentTarget; viewer: ViewerDTO; comments: CatalogCommentDTO[]; pending: boolean; onClose: () => void; onSubmit: (target: CommentTarget, body: string) => void }) {
+export function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSubmit }: { target: CommentTarget; viewer: ViewerDTO; comments: CatalogCommentDTO[]; pending: boolean; onClose: () => void; onSubmit: (target: CommentTarget, body: string) => void }) {
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const targetComments = comments.filter((comment) => target.type === "item" ? comment.itemId === target.id : comment.subcollectionId === target.id);
-  const isItem = target.type === "item";
+  const targetComments = comments.filter((comment) => target.type === "collection"
+    ? comment.collectionId === target.id
+    : target.type === "item"
+      ? comment.itemId === target.id
+      : comment.subcollectionId === target.id);
+  const targetLabel = target.type === "collection" ? "collection" : target.type;
 
   return (
     <motion.div
@@ -398,7 +414,7 @@ function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSub
           <div>
             <span className="eyebrow">COMMENTS</span>
             <h2>{target.title}</h2>
-            {expanded ? <p className="catalog-comment-expanded-meta">{targetComments.length} {targetComments.length === 1 ? "comment" : "comments"} on this {isItem ? "item" : "subcollection"}</p> : null}
+            {expanded ? <p className="catalog-comment-expanded-meta">{targetComments.length} {targetComments.length === 1 ? "comment" : "comments"} on this {targetLabel}</p> : null}
           </div>
           <div className="catalog-comment-sheet-header-actions">
             <button
@@ -416,7 +432,7 @@ function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSub
         </header>
         <div className={`catalog-comment-list${expanded ? " catalog-comment-list--expanded" : ""}`}>
           {targetComments.map((comment) => <article key={comment.id}><span>{comment.isOwn ? viewer.displayName : "Collector"}</span><p>{comment.body}</p><small>{dateLabel(comment.createdAt)}</small></article>)}
-          {targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {isItem ? "item" : "subcollection"}.</p></div> : null}
+          {targetComments.length === 0 ? <div className="catalog-comment-empty"><MessageCircle size={20} /><strong>Start the conversation.</strong><p>Leave the first note on this {targetLabel}.</p></div> : null}
         </div>
         <form
           className={`catalog-comment-composer${expanded ? " catalog-comment-composer--expanded" : ""}`}
@@ -429,7 +445,7 @@ function CatalogCommentSheet({ target, viewer, comments, pending, onClose, onSub
           }}
         >
           <img src={viewer.avatarUrl ?? "/favicon.ico"} alt="" />
-          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`Add a comment about this ${isItem ? "item" : "subcollection"}…`} maxLength={2000} />
+          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`Add a comment about this ${targetLabel}…`} maxLength={2000} />
           <button className="primary-button" disabled={pending || !draft.trim()}><Send size={16} /> Send</button>
         </form>
       </motion.section>

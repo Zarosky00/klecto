@@ -95,6 +95,9 @@
 .collectionHeader h3 { margin: 6px 0 0; font-family: Georgia, serif; font-size: clamp(27px, 4vw, 37px); font-weight: 500; letter-spacing: -1.35px; line-height: 1; }
 .collectionHeader > span { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .collectionDescription { max-width: 700px; margin: 15px 28px 23px; color: #67655e; font-size: 13px; line-height: 1.55; }
+.openCollection { display: inline-flex; align-items: center; gap: 6px; margin: -6px 28px 20px; color: #4f622b; font-size: 11px; font-weight: 790; text-decoration: none; transition: gap 180ms ease, color 180ms ease; }
+.openCollection svg { transform: rotate(180deg); }
+.openCollection:hover { gap: 9px; color: #2f3a20; }
 .itemGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-top: 1px solid var(--soft-line); background: var(--soft-line); }
 .itemCard { min-width: 0; background: var(--surface); padding: 15px; transition: background 180ms ease, transform 180ms ease; }
 .itemCard:hover { background: #fffefa; }
@@ -113,6 +116,62 @@
 .emptyProfile { min-height: 250px; display: grid; place-content: center; justify-items: center; gap: 8px; border: 1px dashed #c7c3b8; border-radius: 24px 24px 24px 8px; color: var(--muted); text-align: center; }
 .emptyProfile strong { color: var(--ink); font-family: Georgia, serif; font-size: 22px; font-weight: 500; }
 .emptyProfile p { max-width: 270px; margin: 0; font-size: 12px; line-height: 1.5; }
+
+.publicCollectionOwner { justify-self: end; color: var(--muted); font-size: 11px; font-weight: 720; }
+.publicCollectionHero { display: grid; grid-template-columns: minmax(0, .98fr) minmax(280px, 1.02fr); gap: clamp(22px, 4vw, 52px); align-items: stretch; overflow: hidden; padding: 14px; border: 1px solid var(--line); border-radius: 29px 29px 29px 9px; background: var(--surface); box-shadow: 0 22px 58px rgb(40 37 27 / 9%); }
+.publicCollectionCover { position: relative; display: grid; min-height: 335px; place-items: center; overflow: hidden; border-radius: 20px 20px 20px 6px; background: linear-gradient(145deg, #dfe8bd, #a9ba76); color: #56632f; }
+.publicCollectionCover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgb(17 20 12 / 42%), transparent 53%); pointer-events: none; }
+.publicCollectionCover img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+.publicCollectionCover > span { position: absolute; z-index: 1; right: 14px; bottom: 14px; padding: 8px 10px; border: 1px solid rgb(255 255 255 / 33%); border-radius: 10px 10px 10px 4px; background: rgb(18 21 14 / 66%); color: white; backdrop-filter: blur(9px); font-size: 10px; font-weight: 780; }
+.publicCollectionCopy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 25px 22px 23px 0; }
+.publicCollectionCopy h1 { margin: 8px 0 12px; color: #30362a; font-family: Georgia, serif; font-size: clamp(44px, 6.2vw, 74px); font-weight: 500; letter-spacing: -3.1px; line-height: .88; }
+.publicCollectionCopy > p { max-width: 540px; margin: 0; color: #68685e; font-size: 14px; line-height: 1.58; }
+.publicCollectionFacts { display: flex; gap: 0; margin: 24px 0 18px; border: 1px solid #e1e5d3; border-radius: 13px 13px 13px 5px; overflow: hidden; }
+.publicCollectionFacts span { display: inline-flex; align-items: baseline; gap: 5px; min-height: 46px; padding: 0 14px; color: var(--muted); font-size: 10px; }
+.publicCollectionFacts span + span { border-left: 1px solid #e1e5d3; }
+.publicCollectionFacts strong { color: #37412b; font-family: Georgia, serif; font-size: 19px; }
+.publicCollectionActions { display: flex; flex-wrap: wrap; gap: 7px; }
+.publicCollectionActions button, .publicSubcollectionMeta button, .publicItemMeta button, .publicItemSheetCopy button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 1px solid #dce2cf; border-radius: 11px 11px 11px 4px; background: #fbfcf7; color: #65705a; cursor: pointer; font-size: 11px; font-weight: 760; transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease; }
+.publicCollectionActions button:hover, .publicSubcollectionMeta button:hover, .publicItemMeta button:hover, .publicItemSheetCopy button:hover { transform: translateY(-2px); border-color: #c5d496; background: #f0f5df; color: #526429; }
+.publicCollectionActions button:last-child { color: #46503b; }
+.liked { color: #b84f5b !important; border-color: #f2ced0 !important; background: #fff6f5 !important; }
+.publicCollectionNotice { display: inline-flex; align-items: center; gap: 7px; margin: 14px 4px 0; padding: 8px 10px; border: 1px solid #e0e7c7; border-radius: 10px 10px 10px 4px; background: #f7faeb; color: #657239; cursor: pointer; font-size: 11px; font-weight: 700; }
+.publicCollectionSection { padding-top: 35px; }
+.publicSubcollectionGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.publicSubcollectionCard, .publicItemCard { overflow: hidden; border: 1px solid var(--line); border-radius: 19px 19px 19px 6px; background: var(--surface); box-shadow: 0 10px 25px rgb(42 38 28 / 5%); }
+.publicSubcollectionOpen, .publicItemOpen { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.publicSubcollectionOpen > div { position: relative; display: grid; height: 165px; place-items: center; overflow: hidden; background: linear-gradient(145deg, #e1eabf, #aab978); color: #59652f; }
+.publicSubcollectionOpen > div::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgb(18 20 14 / 30%), transparent 62%); }
+.publicSubcollectionOpen img, .publicItemOpen img { width: 100%; height: 100%; object-fit: cover; transition: transform 500ms cubic-bezier(.2, .8, .2, 1); }
+.publicSubcollectionOpen:hover img, .publicItemOpen:hover img { transform: scale(1.045); }
+.publicSubcollectionOpen > div > span { position: absolute; z-index: 1; top: 10px; left: 10px; padding: 5px 7px; border-radius: 8px 8px 8px 3px; background: rgb(21 24 16 / 66%); color: white; font-size: 8px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+.publicSubcollectionOpen small { display: block; overflow: hidden; margin: 14px 14px 0; color: #65753a; font-size: 10px; font-weight: 800; letter-spacing: .8px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.publicSubcollectionOpen p { display: -webkit-box; min-height: 30px; overflow: hidden; margin: 6px 14px 0; color: var(--muted); font-size: 10px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.publicSubcollectionMeta, .publicItemMeta { display: flex; align-items: center; gap: 7px; padding: 10px 12px 12px; }
+.publicSubcollectionMeta button, .publicItemMeta button { min-height: 29px; padding: 0 7px; border: 0; background: transparent; font-size: 9px; }
+.publicSubcollectionMeta span, .publicItemMeta span { display: inline-flex; align-items: center; gap: 5px; min-height: 29px; color: #77816b; font-size: 9px; font-weight: 740; }
+.publicItemGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
+.publicItemOpen > div { position: relative; display: grid; aspect-ratio: 1 / .9; place-items: center; overflow: hidden; background: #eff0e7; color: #929d7a; }
+.publicItemOpen > div > span { position: absolute; z-index: 1; top: 9px; left: 9px; display: inline-flex; align-items: center; gap: 4px; min-height: 25px; padding: 0 7px; border-radius: 8px 8px 8px 3px; background: #fff0b3; color: #785d00; font-size: 8px; font-weight: 800; }
+.publicItemOpen small { display: block; margin: 12px 12px 0; color: #758060; font-size: 9px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; }
+.publicItemOpen h3 { overflow: hidden; margin: 5px 12px 4px; color: #34382f; font-family: Georgia, serif; font-size: 20px; font-weight: 500; letter-spacing: -.55px; text-overflow: ellipsis; white-space: nowrap; }
+.publicItemOpen p { overflow: hidden; margin: 0 12px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.publicDetailBackdrop { position: fixed; z-index: 150; inset: 0; display: flex; align-items: center; justify-content: center; padding: 22px; background: rgb(17 20 12 / 42%); backdrop-filter: blur(7px); }
+.publicDetailSheet, .publicItemSheet { width: min(860px, 100%); max-height: min(86dvh, 760px); overflow: auto; border: 1px solid rgb(255 255 255 / 82%); border-radius: 25px 25px 25px 8px; background: #fffefa; box-shadow: 0 30px 76px rgb(16 18 11 / 30%); }
+.publicDetailSheet > header, .publicItemSheet > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 21px 22px 17px; border-bottom: 1px solid var(--soft-line); }
+.publicDetailSheet h2, .publicItemSheet h2 { margin: 5px 0 5px; color: #30372a; font-family: Georgia, serif; font-size: clamp(27px, 4vw, 38px); font-weight: 500; letter-spacing: -1.1px; line-height: .95; }
+.publicDetailSheet header p { margin: 0; color: var(--muted); font-size: 12px; }
+.publicDetailSheet > header > button, .publicItemSheet > header > button { display: grid; flex: 0 0 auto; width: 35px; height: 35px; place-items: center; border: 1px solid #dce2ce; border-radius: 10px 10px 10px 4px; background: #f8faef; color: #57653a; cursor: pointer; }
+.publicDetailItems { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; padding: 16px; }
+.publicItemSheet { width: min(610px, 100%); }
+.publicItemSheetImage { display: grid; height: min(49vh, 410px); place-items: center; overflow: hidden; background: #eef0e8; color: #8b9674; }
+.publicItemSheetImage img { width: 100%; height: 100%; object-fit: contain; }
+.publicItemSheetCopy { padding: 18px 22px 22px; }
+.publicItemSheetCopy > p { margin: 0; color: #4b5145; font-size: 13px; line-height: 1.58; }
+.publicItemSheetCopy > span { display: block; margin-top: 11px; color: var(--muted); font-size: 11px; }
+.publicItemSheetCopy > div { display: flex; align-items: center; gap: 16px; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--soft-line); }
+.publicItemSheetCopy > div > span { display: inline-flex; align-items: center; gap: 6px; color: #727d65; font-size: 11px; font-weight: 700; }
+.commentAvatar { display: grid; width: 33px; height: 33px; place-items: center; border-radius: 11px 11px 11px 4px; background: #26301e; color: var(--acid); font-family: Georgia, serif; font-size: 14px; font-weight: 700; }
 
 .unavailablePage { min-height: 100vh; display: grid; align-content: start; padding-top: 25px; }
 .unavailableCard { width: min(580px, 100%); margin: min(16vh, 140px) auto 0; padding: 54px 44px; border: 1px solid var(--line); border-radius: 30px 30px 30px 9px; background: var(--surface); box-shadow: var(--shadow); text-align: center; animation: profileIn 550ms cubic-bezier(.2, .8, .2, 1) both; }
@@ -162,12 +221,38 @@
   .collectionHeader h3 { font-size: 29px; }
   .collectionHeader > span { display: block; margin-top: 7px; }
   .collectionDescription { margin: 12px 20px 19px; font-size: 12px; }
+  .openCollection { margin: -7px 20px 17px; }
   .itemGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .itemCard { padding: 11px; }
   .itemCopy h3 { font-size: 17px; }
   .favorite { width: 27px; height: 27px; padding: 0; justify-content: center; font-size: 0; }
   .emptyCollection { padding: 17px 20px; }
   .unavailableCard { margin-top: min(17vh, 100px); padding: 42px 24px; }
+  .publicCollectionOwner { font-size: 10px; }
+  .publicCollectionHero { grid-template-columns: 1fr; gap: 0; padding: 9px; border-radius: 22px 22px 22px 7px; }
+  .publicCollectionCover { min-height: 235px; border-radius: 15px 15px 15px 5px; }
+  .publicCollectionCopy { padding: 19px 11px 10px; }
+  .publicCollectionCopy h1 { font-size: clamp(39px, 12vw, 54px); letter-spacing: -2.2px; }
+  .publicCollectionCopy > p { font-size: 12px; }
+  .publicCollectionFacts { width: 100%; margin: 17px 0 13px; }
+  .publicCollectionFacts span { flex: 1; justify-content: center; min-height: 40px; padding-inline: 8px; }
+  .publicCollectionActions { width: 100%; }
+  .publicCollectionActions button { flex: 1; justify-content: center; min-height: 36px; padding-inline: 9px; }
+  .publicCollectionSection { padding-top: 28px; }
+  .publicSubcollectionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .publicSubcollectionOpen > div { height: 132px; }
+  .publicSubcollectionOpen small { margin: 10px 10px 0; font-size: 8px; }
+  .publicSubcollectionOpen p { min-height: 27px; margin-inline: 10px; font-size: 9px; }
+  .publicSubcollectionMeta, .publicItemMeta { padding: 7px 8px 9px; }
+  .publicItemGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .publicItemOpen small { margin: 10px 10px 0; font-size: 8px; }
+  .publicItemOpen h3 { margin-inline: 10px; font-size: 18px; }
+  .publicItemOpen p { margin-inline: 10px; font-size: 9px; }
+  .publicDetailBackdrop { align-items: flex-end; padding: 10px; }
+  .publicDetailSheet, .publicItemSheet { max-height: min(90dvh, 760px); border-radius: 21px 21px 21px 7px; }
+  .publicDetailSheet > header, .publicItemSheet > header { padding: 18px 16px 14px; }
+  .publicDetailItems { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 11px; gap: 9px; }
+  .publicItemSheetCopy { padding: 15px 16px 18px; }
 }
 
 @media (max-width: 390px) {

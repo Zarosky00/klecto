@@ -13,6 +13,8 @@ import {
   deleteItemMutation,
   deleteSubcollectionMutation,
   recordCollectionShareMutation,
+  recordCatalogViewMutation,
+  setCollectionLikeMutation,
   setItemLikeMutation,
   setSubcollectionLikeMutation,
   updateCollectionMutation,
@@ -83,11 +85,17 @@ const reactionSchema = z.object({
 
 const catalogCommentSchema = z.object({
   collectionId: z.string().uuid(),
+  targetCollectionId: z.string().uuid().nullable().optional().default(null),
   itemId: z.string().uuid().nullable(),
   subcollectionId: z.string().uuid().nullable(),
   body: z.string().trim().min(1).max(2000),
-}).refine((input) => Number(Boolean(input.itemId)) + Number(Boolean(input.subcollectionId)) === 1, {
-  message: "Choose one item or subcollection to comment on.",
+}).refine((input) => Number(Boolean(input.targetCollectionId)) + Number(Boolean(input.itemId)) + Number(Boolean(input.subcollectionId)) === 1, {
+  message: "Choose one collection, subcollection, or item to comment on.",
+});
+
+const catalogViewSchema = z.object({
+  targetType: z.enum(["collection", "subcollection", "item"]),
+  targetId: z.string().uuid(),
 });
 
 const itemSchema = z.object({
@@ -214,6 +222,14 @@ export async function setItemLikeAction(input: unknown): Promise<ActionResult> {
   return result;
 }
 
+export async function setCollectionLikeAction(input: unknown): Promise<ActionResult> {
+  const parsed = reactionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await setCollectionLikeMutation({ targetId: parsed.data.id, active: parsed.data.active });
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
 export async function setSubcollectionLikeAction(input: unknown): Promise<ActionResult> {
   const parsed = reactionSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
@@ -226,12 +242,19 @@ export async function createCatalogCommentAction(input: unknown): Promise<Action
   const parsed = catalogCommentSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const result = await createCatalogCommentMutation({
+    collectionId: parsed.data.targetCollectionId,
     itemId: parsed.data.itemId,
     subcollectionId: parsed.data.subcollectionId,
     body: parsed.data.body,
   });
   if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.subcollectionId);
   return result;
+}
+
+export async function recordCatalogViewAction(input: unknown): Promise<ActionResult> {
+  const parsed = catalogViewSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return recordCatalogViewMutation(parsed.data);
 }
 
 export async function createItemAction(input: unknown): Promise<ActionResult> {

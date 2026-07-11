@@ -1,16 +1,18 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Check,
   ChevronRight,
   Eye,
+  Heart,
   ImagePlus,
   Layers3,
   LockKeyhole,
+  MessageCircle,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -25,14 +27,18 @@ import {
 } from "lucide-react";
 import {
   createCollectionPostAction,
+  createCatalogCommentAction,
   deleteCollectionAction,
   deleteSubcollectionAction,
   recordCollectionShareAction,
+  recordCatalogViewAction,
+  setCollectionLikeAction,
   updateCollectionAction,
 } from "@/app/actions/catalog";
-import { SubcollectionWorkspace } from "./subcollection-workspace";
+import { CatalogCommentSheet, SubcollectionWorkspace, type CommentTarget } from "./subcollection-workspace";
 import { createClient } from "@/lib/supabase/client";
 import type {
+  CatalogCommentDTO,
   CollectionDTO,
   SubcollectionDTO,
   TemplateDTO,
@@ -48,6 +54,7 @@ type CollectionManagerProps = {
 };
 
 type Notice = { type: "error" | "success"; text: string } | null;
+type CollectionReactionState = { liked: boolean; likes: number; comments: number; views: number };
 
 type DeleteConfirmation =
   | { kind: "collection" }
@@ -102,6 +109,18 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
   const [uploadingCover, setUploadingCover] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [pending, startTransition] = useTransition();
+  const [collectionReaction, setCollectionReaction] = useState<CollectionReactionState>({
+    liked: collection.likedByViewer,
+    likes: collection.likeCount,
+    comments: collection.commentCount,
+    views: collection.viewCount,
+  });
+  const [comments, setComments] = useState<CatalogCommentDTO[]>(collection.comments);
+  const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
+
+  useEffect(() => {
+    void recordCatalogViewAction({ targetType: "collection", targetId: collection.id });
+  }, [collection.id]);
 
   const basePayload = (nextVisibility = visibility, nextCoverPath = coverPath) => ({
     id: collection.id,
@@ -237,8 +256,58 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
     });
   };
 
+  const toggleCollectionLike = () => {
+    const prior = collectionReaction;
+    const next = {
+      ...prior,
+      liked: !prior.liked,
+      likes: prior.likes + (prior.liked ? -1 : 1),
+    };
+    setCollectionReaction(next);
+    startTransition(async () => {
+      const result = await setCollectionLikeAction({
+        id: collection.id,
+        active: next.liked,
+        collectionId: collection.id,
+      });
+      if (!result.ok) {
+        setCollectionReaction(prior);
+        setNotice({ type: "error", text: result.error ?? "The collection like could not be updated." });
+      }
+    });
+  };
+
+  const submitCollectionComment = (target: CommentTarget, body: string) => {
+    if (target.type !== "collection") return;
+    startTransition(async () => {
+      const result = await createCatalogCommentAction({
+        collectionId: collection.id,
+        targetCollectionId: target.id,
+        itemId: null,
+        subcollectionId: null,
+        body,
+      });
+      if (!result.ok || !result.id) {
+        setNotice({ type: "error", text: result.error ?? "The comment could not be saved." });
+        return;
+      }
+      const commentId = result.id;
+      setComments((current) => [...current, {
+        id: commentId,
+        collectionId: target.id,
+        itemId: null,
+        subcollectionId: null,
+        authorId: viewer.id,
+        body,
+        createdAt: new Date().toISOString(),
+        isOwn: true,
+      }]);
+      setCollectionReaction((current) => ({ ...current, comments: current.comments + 1 }));
+    });
+  };
+
   const shareCollection = async () => {
-    const url = `${window.location.origin}/u/${viewer.username}#collection-${collection.slug}`;
+    const url = `${window.location.origin}/u/${viewer.username}/collections/${collection.slug}`;
     const shareData = {
       title: `${collection.name} · Klecto`,
       text: collection.description || `Take a look at ${viewer.displayName}'s ${collection.name} collection.`,
@@ -324,6 +393,11 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
               <span>{collection.items.length} total items</span>
               <span>Updated {formatDate(collection.updatedAt)}</span>
             </div>
+            <div className="catalog-reactions collection-reactions" aria-label="Collection engagement">
+              <button className={collectionReaction.liked ? "liked" : ""} disabled={pending} onClick={toggleCollectionLike} aria-label={collectionReaction.liked ? "Unlike collection" : "Like collection"}><Heart size={17} fill={collectionReaction.liked ? "currentColor" : "none"} /> {collectionReaction.likes}</button>
+              <button disabled={pending} onClick={() => setCommentTarget({ type: "collection", id: collection.id, title: collection.name })}><MessageCircle size={17} /> {collectionReaction.comments}</button>
+              <span className="catalog-view-count" aria-label={`${collectionReaction.views} collection views`}><Eye size={16} /> {collectionReaction.views}</span>
+            </div>
             <div className="studio-hero-actions">
               <button className="secondary-button" disabled={pending} onClick={() => void shareCollection()}><Share2 size={16} /> Share</button>
               <button className="primary-button" disabled={pending} onClick={() => setShowPostComposer((current) => !current)}><Send size={16} /> Post collection</button>
@@ -408,6 +482,8 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
           onCancel={() => setDeleteConfirmation(null)}
           onConfirm={confirmDelete}
         /> : null}
+
+        {commentTarget ? <CatalogCommentSheet target={commentTarget} viewer={viewer} comments={comments} pending={pending} onClose={() => setCommentTarget(null)} onSubmit={submitCollectionComment} /> : null}
 
         {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
       </section>

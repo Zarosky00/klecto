@@ -45,6 +45,7 @@ export type SubcollectionDTO = {
   likeCount: number;
   likedByViewer: boolean;
   commentCount: number;
+  viewCount: number;
 };
 
 export type ItemDTO = {
@@ -67,11 +68,13 @@ export type ItemDTO = {
   likeCount: number;
   likedByViewer: boolean;
   commentCount: number;
+  viewCount: number;
   createdAt: string;
 };
 
 export type CatalogCommentDTO = {
   id: string;
+  collectionId: string | null;
   itemId: string | null;
   subcollectionId: string | null;
   authorId: string;
@@ -91,6 +94,10 @@ export type CollectionDTO = {
   visibility: Visibility;
   isFeatured: boolean;
   updatedAt: string;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
+  viewCount: number;
   subcollections: SubcollectionDTO[];
   items: ItemDTO[];
   comments: CatalogCommentDTO[];
@@ -109,6 +116,8 @@ export type CatalogDashboardDTO = {
  */
 export type PublicProfileItemDTO = {
   id: string;
+  collectionId: string;
+  subcollectionId: string | null;
   title: string;
   description: string | null;
   brand: string | null;
@@ -120,6 +129,24 @@ export type PublicProfileItemDTO = {
   isFavorite: boolean;
   imageUrls: string[];
   imageCount: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
+  viewCount: number;
+};
+
+export type PublicProfileSubcollectionDTO = {
+  id: string;
+  collectionId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  kind: "brand" | "series" | "era" | "custom";
+  coverUrl: string | null;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
+  viewCount: number;
 };
 
 export type PublicProfileCollectionDTO = {
@@ -132,7 +159,13 @@ export type PublicProfileCollectionDTO = {
   updatedAt: string;
   itemCount: number;
   subcollectionCount: number;
+  likeCount: number;
+  likedByViewer: boolean;
+  commentCount: number;
+  viewCount: number;
+  subcollections: PublicProfileSubcollectionDTO[];
   items: PublicProfileItemDTO[];
+  comments: CatalogCommentDTO[];
 };
 
 export type PublicProfileDTO = {
@@ -167,5 +200,6 @@ export type PublicProfileDTO = {
 export type ActionResult = {
   ok: boolean;
   id?: string;
+  created?: boolean;
   error?: string;
 };

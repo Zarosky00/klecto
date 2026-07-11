@@ -3,6 +3,7 @@ import type { Visibility } from "@/lib/catalog-types";
 export type DemoReaction = {
   likeCount: number;
   commentCount: number;
+  viewCount: number;
   likedByViewer: boolean;
 };
 
@@ -30,7 +31,7 @@ export type DemoSubcollection = DemoReaction & {
   items: DemoItem[];
 };
 
-export type DemoCollection = {
+export type DemoCollection = DemoReaction & {
   slug: string;
   name: string;
   description: string;
@@ -53,6 +54,10 @@ const childhoodThings: DemoCollection = {
   visibility: "private",
   coverUrl: "https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?auto=format&fit=crop&w=1400&q=88",
   updatedAt: "2026-07-09T10:20:00.000Z",
+  likeCount: 42,
+  commentCount: 7,
+  viewCount: 384,
+  likedByViewer: false,
   subcollections: [
     {
       id: "toy-box",
@@ -64,6 +69,7 @@ const childhoodThings: DemoCollection = {
       coverUrl: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1400&q=88",
       likeCount: 18,
       commentCount: 3,
+      viewCount: 152,
       likedByViewer: true,
       items: [
         {
@@ -82,6 +88,7 @@ const childhoodThings: DemoCollection = {
           ],
           likeCount: 24,
           commentCount: 4,
+          viewCount: 219,
           likedByViewer: true,
           createdAt: "2026-07-09T10:20:00.000Z",
         },
@@ -100,6 +107,7 @@ const childhoodThings: DemoCollection = {
           ],
           likeCount: 11,
           commentCount: 1,
+          viewCount: 96,
           likedByViewer: false,
           createdAt: "2026-07-03T10:20:00.000Z",
         },
@@ -115,6 +123,7 @@ const childhoodThings: DemoCollection = {
       coverUrl: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=88",
       likeCount: 9,
       commentCount: 2,
+      viewCount: 108,
       likedByViewer: false,
       items: [
         {
@@ -132,6 +141,7 @@ const childhoodThings: DemoCollection = {
           ],
           likeCount: 17,
           commentCount: 2,
+          viewCount: 184,
           likedByViewer: true,
           createdAt: "2026-06-22T10:20:00.000Z",
         },
@@ -150,6 +160,7 @@ const childhoodThings: DemoCollection = {
           ],
           likeCount: 6,
           commentCount: 0,
+          viewCount: 73,
           likedByViewer: false,
           createdAt: "2026-06-15T10:20:00.000Z",
         },
@@ -165,6 +176,7 @@ const childhoodThings: DemoCollection = {
       coverUrl: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1400&q=88",
       likeCount: 13,
       commentCount: 1,
+      viewCount: 126,
       likedByViewer: false,
       items: [
         {
@@ -182,6 +194,7 @@ const childhoodThings: DemoCollection = {
           ],
           likeCount: 20,
           commentCount: 3,
+          viewCount: 205,
           likedByViewer: false,
           createdAt: "2026-06-08T10:20:00.000Z",
         },
@@ -204,6 +217,7 @@ const childhoodThings: DemoCollection = {
       ],
       likeCount: 8,
       commentCount: 1,
+      viewCount: 64,
       likedByViewer: true,
       createdAt: "2026-05-30T10:20:00.000Z",
     },

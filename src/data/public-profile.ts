@@ -3,9 +3,11 @@ import "server-only";
 import { getCurrentIdentity } from "@/data/auth";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  CatalogCommentDTO,
   PublicProfileCollectionDTO,
   PublicProfileDTO,
   PublicProfileItemDTO,
+  PublicProfileSubcollectionDTO,
 } from "@/lib/catalog-types";
 
 const usernamePattern = /^[a-z0-9_]{3,24}$/;
@@ -90,6 +92,11 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
     collectionsResult,
     subcollectionsResult,
     itemsResult,
+    collectionLikesResult,
+    subcollectionLikesResult,
+    itemLikesResult,
+    catalogCommentsResult,
+    catalogViewsResult,
     followersResult,
     followingResult,
     followStateResult,
@@ -103,13 +110,30 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       .order("updated_at", { ascending: false }),
     supabase
       .from("subcollections")
-      .select("id, collection_id")
+      .select("id, collection_id, slug, name, description, kind, cover_path")
       .eq("user_id", profile.id),
     supabase
       .from("items")
-      .select("id, collection_id, title, description, brand, model, year, condition, mood, is_favorite, created_at, item_media(storage_path, position), item_tags(tag)")
+      .select("id, collection_id, subcollection_id, title, description, brand, model, year, condition, mood, is_favorite, created_at, item_media(storage_path, position), item_tags(tag)")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("collection_likes")
+      .select("collection_id, user_id"),
+    supabase
+      .from("subcollection_likes")
+      .select("subcollection_id, user_id"),
+    supabase
+      .from("item_likes")
+      .select("item_id, user_id"),
+    supabase
+      .from("catalog_comments")
+      .select("id, collection_id, subcollection_id, item_id, author_id, body, created_at")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("catalog_views")
+      .select("collection_id, subcollection_id, item_id"),
     supabase
       .from("follows")
       .select("*", { count: "exact", head: true })
@@ -138,7 +162,57 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
   const coverPaths = (collectionsResult.data ?? [])
     .map((collection) => collection.cover_path)
     .filter((path): path is string => Boolean(path));
-  const signedUrlByPath = await signedCatalogUrls(supabase, [...coverPaths, ...mediaPaths]);
+  const subcollectionCoverPaths = (subcollectionsResult.data ?? [])
+    .map((subcollection) => subcollection.cover_path)
+    .filter((path): path is string => Boolean(path));
+  const signedUrlByPath = await signedCatalogUrls(supabase, [...coverPaths, ...subcollectionCoverPaths, ...mediaPaths]);
+
+  const collectionLikeCounts = new Map<string, number>();
+  const likedCollectionIds = new Set<string>();
+  (collectionLikesResult.data ?? []).forEach((like) => {
+    collectionLikeCounts.set(like.collection_id, (collectionLikeCounts.get(like.collection_id) ?? 0) + 1);
+    if (like.user_id === identity?.id) likedCollectionIds.add(like.collection_id);
+  });
+  const subcollectionLikeCounts = new Map<string, number>();
+  const likedSubcollectionIds = new Set<string>();
+  (subcollectionLikesResult.data ?? []).forEach((like) => {
+    subcollectionLikeCounts.set(like.subcollection_id, (subcollectionLikeCounts.get(like.subcollection_id) ?? 0) + 1);
+    if (like.user_id === identity?.id) likedSubcollectionIds.add(like.subcollection_id);
+  });
+  const itemLikeCounts = new Map<string, number>();
+  const likedItemIds = new Set<string>();
+  (itemLikesResult.data ?? []).forEach((like) => {
+    itemLikeCounts.set(like.item_id, (itemLikeCounts.get(like.item_id) ?? 0) + 1);
+    if (like.user_id === identity?.id) likedItemIds.add(like.item_id);
+  });
+
+  const comments: CatalogCommentDTO[] = (catalogCommentsResult.data ?? []).map((comment) => ({
+    id: comment.id,
+    collectionId: comment.collection_id,
+    subcollectionId: comment.subcollection_id,
+    itemId: comment.item_id,
+    authorId: comment.author_id,
+    body: comment.body,
+    createdAt: comment.created_at,
+    isOwn: comment.author_id === identity?.id,
+  }));
+  const collectionCommentCounts = new Map<string, number>();
+  const subcollectionCommentCounts = new Map<string, number>();
+  const itemCommentCounts = new Map<string, number>();
+  comments.forEach((comment) => {
+    if (comment.collectionId) collectionCommentCounts.set(comment.collectionId, (collectionCommentCounts.get(comment.collectionId) ?? 0) + 1);
+    if (comment.subcollectionId) subcollectionCommentCounts.set(comment.subcollectionId, (subcollectionCommentCounts.get(comment.subcollectionId) ?? 0) + 1);
+    if (comment.itemId) itemCommentCounts.set(comment.itemId, (itemCommentCounts.get(comment.itemId) ?? 0) + 1);
+  });
+
+  const collectionViewCounts = new Map<string, number>();
+  const subcollectionViewCounts = new Map<string, number>();
+  const itemViewCounts = new Map<string, number>();
+  (catalogViewsResult.data ?? []).forEach((view) => {
+    if (view.collection_id) collectionViewCounts.set(view.collection_id, (collectionViewCounts.get(view.collection_id) ?? 0) + 1);
+    if (view.subcollection_id) subcollectionViewCounts.set(view.subcollection_id, (subcollectionViewCounts.get(view.subcollection_id) ?? 0) + 1);
+    if (view.item_id) itemViewCounts.set(view.item_id, (itemViewCounts.get(view.item_id) ?? 0) + 1);
+  });
 
   const items: PublicProfileItemDTO[] = itemRows.map((item) => {
     const orderedMedia = [...(item.item_media ?? [])].sort((left, right) => left.position - right.position);
@@ -148,6 +222,8 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
 
     return {
       id: item.id,
+      collectionId: item.collection_id,
+      subcollectionId: item.subcollection_id,
       title: item.title,
       description: item.description,
       brand: item.brand,
@@ -159,12 +235,30 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       isFavorite: item.is_favorite,
       imageUrls,
       imageCount: orderedMedia.length,
+      likeCount: itemLikeCounts.get(item.id) ?? 0,
+      likedByViewer: likedItemIds.has(item.id),
+      commentCount: itemCommentCounts.get(item.id) ?? 0,
+      viewCount: itemViewCounts.get(item.id) ?? 0,
     };
   });
 
   const itemCollectionById = new Map(
     itemRows.map((item) => [item.id, item.collection_id]),
   );
+
+  const subcollections: PublicProfileSubcollectionDTO[] = (subcollectionsResult.data ?? []).map((subcollection) => ({
+    id: subcollection.id,
+    collectionId: subcollection.collection_id,
+    slug: subcollection.slug,
+    name: subcollection.name,
+    description: subcollection.description,
+    kind: subcollection.kind as PublicProfileSubcollectionDTO["kind"],
+    coverUrl: subcollection.cover_path ? signedUrlByPath.get(subcollection.cover_path) ?? null : null,
+    likeCount: subcollectionLikeCounts.get(subcollection.id) ?? 0,
+    likedByViewer: likedSubcollectionIds.has(subcollection.id),
+    commentCount: subcollectionCommentCounts.get(subcollection.id) ?? 0,
+    viewCount: subcollectionViewCounts.get(subcollection.id) ?? 0,
+  }));
 
   const collections: PublicProfileCollectionDTO[] = (collectionsResult.data ?? []).map((collection) => {
     const collectionItems = items.filter(
@@ -180,8 +274,14 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       isFeatured: collection.is_featured,
       updatedAt: collection.updated_at,
       itemCount: collectionItems.length,
-      subcollectionCount: (subcollectionsResult.data ?? []).filter((entry) => entry.collection_id === collection.id).length,
+      subcollectionCount: subcollections.filter((entry) => entry.collectionId === collection.id).length,
+      likeCount: collectionLikeCounts.get(collection.id) ?? 0,
+      likedByViewer: likedCollectionIds.has(collection.id),
+      commentCount: collectionCommentCounts.get(collection.id) ?? 0,
+      viewCount: collectionViewCounts.get(collection.id) ?? 0,
+      subcollections: subcollections.filter((entry) => entry.collectionId === collection.id),
       items: collectionItems,
+      comments: comments.filter((comment) => comment.collectionId === collection.id),
     };
   });
 
@@ -218,4 +318,13 @@ export async function getPublicProfile(rawUsername: string): Promise<PublicProfi
       : null,
     collections,
   };
+}
+
+export async function getPublicCollection(rawUsername: string, rawSlug: string) {
+  const profile = await getPublicProfile(rawUsername);
+  if (!profile) return null;
+
+  const slug = rawSlug.trim().toLocaleLowerCase();
+  const collection = profile.collections.find((entry) => entry.slug === slug);
+  return collection ? { profile, collection } : null;
 }

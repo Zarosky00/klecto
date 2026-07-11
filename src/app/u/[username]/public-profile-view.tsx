@@ -146,6 +146,7 @@ export function PublicProfileView({ profile }: { profile: PublicProfileDTO }) {
                   <span>Updated {new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(new Date(collection.updatedAt))}</span>
                 </div>
                 <p className={styles.collectionDescription}>{collection.description || "A carefully kept part of this collector’s story."}</p>
+                <Link className={styles.openCollection} href={`/u/${profile.profile.username}/collections/${collection.slug}`}>Open collection <ArrowLeft size={14} /></Link>
                 {collection.items.length ? <div className={styles.itemGrid}>{collection.items.map((item) => <ItemCard item={item} key={item.id} />)}</div> : <div className={styles.emptyCollection}><Layers3 size={20} /><span>This shelf is ready for its first object.</span></div>}
               </article>
             ))}

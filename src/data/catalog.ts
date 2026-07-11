@@ -44,9 +44,11 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     collectionsResult,
     subcollectionsResult,
     itemsResult,
+    collectionLikesResult,
     itemLikesResult,
     subcollectionLikesResult,
     catalogCommentsResult,
+    catalogViewsResult,
     followersResult,
     followingResult,
   ] = await Promise.all([
@@ -72,6 +74,9 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       .eq("user_id", identity.id)
       .order("created_at", { ascending: false }),
     supabase
+      .from("collection_likes")
+      .select("collection_id, user_id"),
+    supabase
       .from("item_likes")
       .select("item_id, user_id"),
     supabase
@@ -79,9 +84,12 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       .select("subcollection_id, user_id"),
     supabase
       .from("catalog_comments")
-      .select("id, item_id, subcollection_id, author_id, body, created_at")
+      .select("id, collection_id, item_id, subcollection_id, author_id, body, created_at")
       .is("deleted_at", null)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("catalog_views")
+      .select("collection_id, subcollection_id, item_id"),
     supabase
       .from("follows")
       .select("*", { count: "exact", head: true })
@@ -126,6 +134,13 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     if (like.user_id === identity.id) likedItemIds.add(like.item_id);
   });
 
+  const collectionLikeCounts = new Map<string, number>();
+  const likedCollectionIds = new Set<string>();
+  (collectionLikesResult.data ?? []).forEach((like) => {
+    collectionLikeCounts.set(like.collection_id, (collectionLikeCounts.get(like.collection_id) ?? 0) + 1);
+    if (like.user_id === identity.id) likedCollectionIds.add(like.collection_id);
+  });
+
   const subcollectionLikeCounts = new Map<string, number>();
   const likedSubcollectionIds = new Set<string>();
   (subcollectionLikesResult.data ?? []).forEach((like) => {
@@ -135,6 +150,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
 
   const comments: CatalogCommentDTO[] = (catalogCommentsResult.data ?? []).map((comment) => ({
     id: comment.id,
+    collectionId: comment.collection_id,
     itemId: comment.item_id,
     subcollectionId: comment.subcollection_id,
     authorId: comment.author_id,
@@ -144,9 +160,20 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
   }));
   const itemCommentCounts = new Map<string, number>();
   const subcollectionCommentCounts = new Map<string, number>();
+  const collectionCommentCounts = new Map<string, number>();
   comments.forEach((comment) => {
+    if (comment.collectionId) collectionCommentCounts.set(comment.collectionId, (collectionCommentCounts.get(comment.collectionId) ?? 0) + 1);
     if (comment.itemId) itemCommentCounts.set(comment.itemId, (itemCommentCounts.get(comment.itemId) ?? 0) + 1);
     if (comment.subcollectionId) subcollectionCommentCounts.set(comment.subcollectionId, (subcollectionCommentCounts.get(comment.subcollectionId) ?? 0) + 1);
+  });
+
+  const collectionViewCounts = new Map<string, number>();
+  const subcollectionViewCounts = new Map<string, number>();
+  const itemViewCounts = new Map<string, number>();
+  (catalogViewsResult.data ?? []).forEach((view) => {
+    if (view.collection_id) collectionViewCounts.set(view.collection_id, (collectionViewCounts.get(view.collection_id) ?? 0) + 1);
+    if (view.subcollection_id) subcollectionViewCounts.set(view.subcollection_id, (subcollectionViewCounts.get(view.subcollection_id) ?? 0) + 1);
+    if (view.item_id) itemViewCounts.set(view.item_id, (itemViewCounts.get(view.item_id) ?? 0) + 1);
   });
 
   const subcollections: SubcollectionDTO[] = (subcollectionsResult.data ?? []).map((entry) => ({
@@ -163,6 +190,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     likeCount: subcollectionLikeCounts.get(entry.id) ?? 0,
     likedByViewer: likedSubcollectionIds.has(entry.id),
     commentCount: subcollectionCommentCounts.get(entry.id) ?? 0,
+    viewCount: subcollectionViewCounts.get(entry.id) ?? 0,
   }));
 
   const items: ItemDTO[] = (itemsResult.data ?? []).map((item) => {
@@ -190,6 +218,7 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
       likeCount: itemLikeCounts.get(item.id) ?? 0,
       likedByViewer: likedItemIds.has(item.id),
       commentCount: itemCommentCounts.get(item.id) ?? 0,
+      viewCount: itemViewCounts.get(item.id) ?? 0,
       createdAt: item.created_at,
     };
   });
@@ -205,9 +234,14 @@ export async function getCatalogDashboard(): Promise<CatalogDashboardDTO> {
     visibility: collection.visibility,
     isFeatured: collection.is_featured,
     updatedAt: collection.updated_at,
+    likeCount: collectionLikeCounts.get(collection.id) ?? 0,
+    likedByViewer: likedCollectionIds.has(collection.id),
+    commentCount: collectionCommentCounts.get(collection.id) ?? 0,
+    viewCount: collectionViewCounts.get(collection.id) ?? 0,
     subcollections: subcollections.filter((entry) => entry.collectionId === collection.id),
     items: items.filter((item) => item.collectionId === collection.id),
     comments: comments.filter((comment) => {
+      if (comment.collectionId === collection.id) return true;
       const belongsToItem = comment.itemId ? items.some((item) => item.collectionId === collection.id && item.id === comment.itemId) : false;
       const belongsToSubcollection = comment.subcollectionId ? subcollections.some((entry) => entry.collectionId === collection.id && entry.id === comment.subcollectionId) : false;
       return belongsToItem || belongsToSubcollection;

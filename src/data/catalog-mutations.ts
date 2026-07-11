@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentIdentity } from "@/data/auth";
 import type { ActionResult, ItemMood, Visibility } from "@/lib/catalog-types";
+import type { Database } from "@/types/database";
 
 export type ProfileMutationInput = {
   username: string;
@@ -55,9 +56,15 @@ export type CatalogReactionMutationInput = {
 };
 
 export type CatalogCommentMutationInput = {
+  collectionId: string | null;
   itemId: string | null;
   subcollectionId: string | null;
   body: string;
+};
+
+export type CatalogViewMutationInput = {
+  targetType: "collection" | "subcollection" | "item";
+  targetId: string;
 };
 
 export type ItemMutationInput = {
@@ -435,6 +442,18 @@ export async function setItemLikeMutation(input: CatalogReactionMutationInput): 
   return { ok: true, id: input.targetId };
 }
 
+export async function setCollectionLikeMutation(input: CatalogReactionMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  if (!context) return { ok: false, error: "Sign in to like a collection." };
+
+  const query = input.active
+    ? context.supabase.from("collection_likes").upsert({ collection_id: input.targetId, user_id: context.identity.id }, { onConflict: "collection_id,user_id", ignoreDuplicates: true })
+    : context.supabase.from("collection_likes").delete().eq("collection_id", input.targetId).eq("user_id", context.identity.id);
+  const { error } = await query;
+  if (error) return { ok: false, error: "Could not update the collection like." };
+  return { ok: true, id: input.targetId };
+}
+
 export async function setSubcollectionLikeMutation(input: CatalogReactionMutationInput): Promise<ActionResult> {
   const context = await authenticatedClient();
   if (!context) return { ok: false, error: "Sign in to like a subcollection." };
@@ -455,6 +474,7 @@ export async function createCatalogCommentMutation(input: CatalogCommentMutation
     .from("catalog_comments")
     .insert({
       author_id: context.identity.id,
+      collection_id: input.collectionId,
       item_id: input.itemId,
       subcollection_id: input.subcollectionId,
       body: input.body,
@@ -463,6 +483,42 @@ export async function createCatalogCommentMutation(input: CatalogCommentMutation
     .single();
   if (error) return { ok: false, error: "Could not add the comment." };
   return { ok: true, id: data.id };
+}
+
+export async function recordCatalogViewMutation(input: CatalogViewMutationInput): Promise<ActionResult> {
+  const context = await authenticatedClient();
+  // Views are a signed-in social signal. Anonymous visitors can still browse,
+  // but never create a mutable analytics row through the public client.
+  if (!context) return { ok: true, id: input.targetId, created: false };
+
+  const ownerQuery = input.targetType === "collection"
+    ? context.supabase.from("collections").select("user_id").eq("id", input.targetId).maybeSingle()
+    : input.targetType === "subcollection"
+      ? context.supabase.from("subcollections").select("user_id").eq("id", input.targetId).maybeSingle()
+      : context.supabase.from("items").select("user_id").eq("id", input.targetId).maybeSingle();
+  const { data: target, error: targetError } = await ownerQuery;
+  if (targetError || !target) return { ok: false, error: "This catalog entry is not available to view." };
+
+  // Do not let an owner inflate their own public view counter.
+  if (target.user_id === context.identity.id) return { ok: true, id: input.targetId, created: false };
+
+  const view: Database["public"]["Tables"]["catalog_views"]["Insert"] = input.targetType === "collection"
+    ? { collection_id: input.targetId, subcollection_id: null, item_id: null, viewer_id: context.identity.id }
+    : input.targetType === "subcollection"
+      ? { collection_id: null, subcollection_id: input.targetId, item_id: null, viewer_id: context.identity.id }
+      : { collection_id: null, subcollection_id: null, item_id: input.targetId, viewer_id: context.identity.id };
+  const { data, error } = await context.supabase
+    .from("catalog_views")
+    .insert(view)
+    .select("id")
+    .maybeSingle();
+
+  // A partial unique index makes one signed-in viewer count once per target
+  // per day. Treat a duplicate as a successful no-op instead of surfacing a
+  // race/reload error in the UI.
+  if (error?.code === "23505") return { ok: true, id: input.targetId, created: false };
+  if (error || !data) return { ok: false, error: "Could not record this view." };
+  return { ok: true, id: input.targetId, created: true };
 }
 
 export async function createItemMutation(input: ItemMutationInput): Promise<ActionResult> {

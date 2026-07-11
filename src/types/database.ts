@@ -135,6 +135,7 @@ export type Database = {
         Row: {
           author_id: string
           body: string
+          collection_id: string | null
           created_at: string
           deleted_at: string | null
           edited_at: string | null
@@ -146,6 +147,7 @@ export type Database = {
         Insert: {
           author_id: string
           body: string
+          collection_id?: string | null
           created_at?: string
           deleted_at?: string | null
           edited_at?: string | null
@@ -157,6 +159,7 @@ export type Database = {
         Update: {
           author_id?: string
           body?: string
+          collection_id?: string | null
           created_at?: string
           deleted_at?: string | null
           edited_at?: string | null
@@ -174,6 +177,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "catalog_comments_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "catalog_comments_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
@@ -185,6 +195,65 @@ export type Database = {
             columns: ["subcollection_id"]
             isOneToOne: false
             referencedRelation: "subcollections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_views: {
+        Row: {
+          collection_id: string | null
+          created_at: string
+          id: string
+          item_id: string | null
+          subcollection_id: string | null
+          viewed_on: string
+          viewer_id: string
+        }
+        Insert: {
+          collection_id?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          subcollection_id?: string | null
+          viewed_on?: string
+          viewer_id: string
+        }
+        Update: {
+          collection_id?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          subcollection_id?: string | null
+          viewed_on?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_views_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_views_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_views_subcollection_id_fkey"
+            columns: ["subcollection_id"]
+            isOneToOne: false
+            referencedRelation: "subcollections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
