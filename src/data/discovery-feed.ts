@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type {
   DiscoveryAuthorDTO,
   DiscoveryCatalogDTO,
+  DiscoveryCatalogPreviewDTO,
   DiscoveryCommentDTO,
   DiscoveryFeedDTO,
   DiscoveryFeedEntryDTO,
@@ -130,37 +131,48 @@ function fallbackFeed(): DiscoveryFeedDTO {
     { id: "demo-comment-1", author: maya, body: "This is the kind of detail that makes a collection feel alive.", createdAt: now, isOwn: false },
     { id: "demo-comment-2", author, body: "Exactly. I still remember finding it again years later.", createdAt: now, isOwn: true },
   ];
+  const catalogPreview: DiscoveryCatalogPreviewDTO = {
+    collection,
+    subcollections: [
+      { id: toyBox.id, slug: toyBox.slug, name: toyBox.name, kind: toyBox.kind, coverUrl: demoImage.section, itemCount: 1 },
+      { id: paperTrail.id, slug: paperTrail.slug, name: paperTrail.name, kind: paperTrail.kind, coverUrl: demoImage.object, itemCount: 1 },
+    ],
+    items: [
+      { id: "demo-controller", title: "Midnight game controller", description: "A weekend tournament survivor.", imageUrl: demoImage.item, subcollectionId: toyBox.id, subcollectionName: toyBox.name },
+      { id: "demo-library-card", title: "Library card", description: "Paper card / 2006 / worn", imageUrl: demoImage.object, subcollectionId: paperTrail.id, subcollectionName: paperTrail.name },
+    ],
+  };
   return {
     isDemoFallback: true,
     entries: [
       {
         id: "demo-collection-childhood", kind: "collection", targetKind: "collection", targetId: collection.id,
-        author, collection, subcollection: null, title: collection.name,
+        author, sourceAuthor: author, collection, subcollection: null, title: collection.name,
         description: "Toys, tickets, and the small proof that a good day happened.", quoteText: null,
         imageUrls: [demoImage.collection], imageCount: 1, mood: null, createdAt: now,
-        likeCount: 42, likedByViewer: false, commentCount: 7, comments: demoComments, wishlistCount: 5, wishlisters: [maya], sourceHref: href,
+        likeCount: 42, likedByViewer: false, commentCount: 7, comments: demoComments, wishlistCount: 5, wishlisters: [maya], catalogPreview, sourceHref: href,
       },
       {
         id: "demo-section-toy-box", kind: "subcollection", targetKind: "subcollection", targetId: toyBox.id,
-        author, collection, subcollection: toyBox, title: toyBox.name,
+        author, sourceAuthor: author, collection, subcollection: toyBox, title: toyBox.name,
         description: "Controllers, figures, and the after-school rituals that lasted for hours.", quoteText: null,
         imageUrls: [demoImage.section], imageCount: 1, mood: null, createdAt: now,
-        likeCount: 18, likedByViewer: false, commentCount: 4, comments: demoComments.slice(0, 1), wishlistCount: 2, wishlisters: [maya], sourceHref: href,
+        likeCount: 18, likedByViewer: false, commentCount: 4, comments: demoComments.slice(0, 1), wishlistCount: 2, wishlisters: [maya], catalogPreview, sourceHref: href,
       },
       {
         id: "demo-item-controller", kind: "item", targetKind: "item", targetId: "demo-controller",
-        author, collection, subcollection: toyBox, title: "Midnight game controller",
+        author, sourceAuthor: author, collection, subcollection: toyBox, title: "Midnight game controller",
         description: "The controller that survived every weekend tournament with one stubborn trigger.", quoteText: null,
         imageUrls: [demoImage.item], imageCount: 3, mood: "memory", createdAt: now,
-        likeCount: 24, likedByViewer: false, commentCount: 4, comments: demoComments, wishlistCount: 8, wishlisters: [maya], sourceHref: href,
+        likeCount: 24, likedByViewer: false, commentCount: 4, comments: demoComments, wishlistCount: 8, wishlisters: [maya], catalogPreview, sourceHref: href,
       },
       {
         id: "demo-wishlist-library-card", kind: "wishlist", targetKind: "item", targetId: "demo-library-card",
-        author: maya,
+        author: maya, sourceAuthor: author,
         collection, subcollection: paperTrail, title: "Library card",
         description: "Paper card · 2006 · worn", quoteText: "I want to find one like this before the year ends.",
         imageUrls: [demoImage.object], imageCount: 2, mood: "neutral", createdAt: now,
-        likeCount: 12, likedByViewer: false, commentCount: 2, comments: demoComments.slice(0, 1), wishlistCount: 1, wishlisters: [maya], sourceHref: href,
+        likeCount: 12, likedByViewer: false, commentCount: 2, comments: demoComments.slice(0, 1), wishlistCount: 1, wishlisters: [maya], catalogPreview, sourceHref: href,
       },
     ],
   };
@@ -321,6 +333,33 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
 
   const collectionDTO = (row: CatalogCollectionRow): DiscoveryCatalogDTO => ({ id: row.id, slug: row.slug, name: row.name });
   const subcollectionDTO = (row: CatalogSubcollectionRow): DiscoverySubcollectionDTO => ({ id: row.id, slug: row.slug, name: row.name, kind: kindFrom(row.kind) });
+  const previewFor = (collection: CatalogCollectionRow): DiscoveryCatalogPreviewDTO => ({
+    collection: collectionDTO(collection),
+    subcollections: subcollections
+      .filter((section) => section.collection_id === collection.id)
+      .map((section) => ({
+        id: section.id,
+        slug: section.slug,
+        name: section.name,
+        kind: kindFrom(section.kind),
+        coverUrl: section.cover_path ? signedUrlByPath.get(section.cover_path) ?? null : null,
+        itemCount: items.filter((item) => item.subcollection_id === section.id).length,
+      })),
+    items: items
+      .filter((item) => item.collection_id === collection.id)
+      .map((item) => {
+        const media = [...(item.item_media ?? [])].sort((left, right) => left.position - right.position);
+        const section = item.subcollection_id ? subcollectionById.get(item.subcollection_id) : null;
+        return {
+          id: item.id,
+          title: item.title,
+          description: item.description ?? item.brand,
+          imageUrl: media[0] ? signedUrlByPath.get(media[0].storage_path) ?? null : null,
+          subcollectionId: section?.id ?? null,
+          subcollectionName: section?.name ?? null,
+        };
+      }),
+  });
   const reactionsFor = (kind: DiscoveryTargetKind, id: string) => {
     const reactions = kind === "collection" ? collectionReaction : kind === "subcollection" ? subcollectionReaction : itemReaction;
     return { likeCount: reactions.counts.get(id) ?? 0, likedByViewer: reactions.mine.has(id) };
@@ -333,10 +372,10 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
     const catalog = collectionDTO(row);
     const reaction = reactionsFor("collection", row.id);
     entries.push({
-      id: `collection-${row.id}`, kind: "collection", targetKind: "collection", targetId: row.id, author,
+      id: `collection-${row.id}`, kind: "collection", targetKind: "collection", targetId: row.id, author, sourceAuthor: author,
       collection: catalog, subcollection: null, title: row.name, description: row.description, quoteText: null,
       imageUrls: row.cover_path && signedUrlByPath.get(row.cover_path) ? [signedUrlByPath.get(row.cover_path)!] : [], imageCount: row.cover_path ? 1 : 0,
-      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [],
+      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [], catalogPreview: previewFor(row),
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -348,10 +387,10 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
     const section = subcollectionDTO(row);
     const reaction = reactionsFor("subcollection", row.id);
     entries.push({
-      id: `subcollection-${row.id}`, kind: "subcollection", targetKind: "subcollection", targetId: row.id, author,
+      id: `subcollection-${row.id}`, kind: "subcollection", targetKind: "subcollection", targetId: row.id, author, sourceAuthor: author,
       collection: catalog, subcollection: section, title: row.name, description: row.description, quoteText: null,
       imageUrls: row.cover_path && signedUrlByPath.get(row.cover_path) ? [signedUrlByPath.get(row.cover_path)!] : [], imageCount: row.cover_path ? 1 : 0,
-      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [],
+      mood: null, createdAt: row.updated_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [], catalogPreview: previewFor(parent),
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -364,11 +403,11 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
     const orderedMedia = [...(row.item_media ?? [])].sort((a, b) => a.position - b.position);
     const reaction = reactionsFor("item", row.id);
     entries.push({
-      id: `item-${row.id}`, kind: "item", targetKind: "item", targetId: row.id, author,
+      id: `item-${row.id}`, kind: "item", targetKind: "item", targetId: row.id, author, sourceAuthor: author,
       collection: catalog, subcollection: section ? subcollectionDTO(section) : null, title: row.title,
       description: row.description ?? row.brand, quoteText: null,
       imageUrls: orderedMedia.map((media) => signedUrlByPath.get(media.storage_path)).filter((url): url is string => Boolean(url)), imageCount: orderedMedia.length,
-      mood: row.mood, createdAt: row.created_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [],
+      mood: row.mood, createdAt: row.created_at, ...reaction, commentCount: commentCount.get(row.id) ?? 0, comments: commentsByTarget.get(row.id) ?? [], wishlistCount: wishlistCountByTarget.get(row.id) ?? 0, wishlisters: wishlistersByTarget.get(row.id) ?? [], catalogPreview: previewFor(parent),
       sourceHref: sourceHref(author, catalog),
     });
   });
@@ -404,10 +443,10 @@ export async function getDiscoveryFeed(): Promise<DiscoveryFeedDTO> {
     if (!catalogRow || !owner) return;
     const reaction = reactionsFor(targetKind, targetId);
     entries.push({
-      id: post.id, kind: "wishlist", targetKind, targetId, author,
+      id: post.id, kind: "wishlist", targetKind, targetId, author, sourceAuthor: owner,
       collection: collectionDTO(catalogRow), subcollection: sectionRow ? subcollectionDTO(sectionRow) : null,
       title, description, quoteText: post.quote_text, imageUrls, imageCount, mood, createdAt: post.created_at,
-      ...reaction, commentCount: commentCount.get(targetId) ?? 0, comments: commentsByTarget.get(targetId) ?? [], wishlistCount: wishlistCountByTarget.get(targetId) ?? 0, wishlisters: wishlistersByTarget.get(targetId) ?? [], sourceHref: sourceHref(owner, collectionDTO(catalogRow)),
+      ...reaction, commentCount: commentCount.get(targetId) ?? 0, comments: commentsByTarget.get(targetId) ?? [], wishlistCount: wishlistCountByTarget.get(targetId) ?? 0, wishlisters: wishlistersByTarget.get(targetId) ?? [], catalogPreview: previewFor(catalogRow), sourceHref: sourceHref(owner, collectionDTO(catalogRow)),
     });
   });
 

@@ -237,6 +237,30 @@ export type DiscoveryCommentDTO = {
   isOwn: boolean;
 };
 
+export type DiscoveryPreviewSubcollectionDTO = {
+  id: string;
+  slug: string;
+  name: string;
+  kind: "brand" | "series" | "era" | "custom";
+  coverUrl: string | null;
+  itemCount: number;
+};
+
+export type DiscoveryPreviewItemDTO = {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  subcollectionId: string | null;
+  subcollectionName: string | null;
+};
+
+export type DiscoveryCatalogPreviewDTO = {
+  collection: DiscoveryCatalogDTO;
+  subcollections: DiscoveryPreviewSubcollectionDTO[];
+  items: DiscoveryPreviewItemDTO[];
+};
+
 export type DiscoveryFeedEntryDTO = {
   /** A post id for a quoted wishlist, otherwise a stable catalog-prefixed id. */
   id: string;
@@ -244,6 +268,8 @@ export type DiscoveryFeedEntryDTO = {
   targetKind: DiscoveryTargetKind;
   targetId: string;
   author: DiscoveryAuthorDTO;
+  /** Original catalogue owner; differs from author on quoted wishlist posts. */
+  sourceAuthor: DiscoveryAuthorDTO;
   collection: DiscoveryCatalogDTO;
   subcollection: DiscoverySubcollectionDTO | null;
   title: string;
@@ -259,6 +285,7 @@ export type DiscoveryFeedEntryDTO = {
   comments: DiscoveryCommentDTO[];
   wishlistCount: number;
   wishlisters: DiscoveryAuthorDTO[];
+  catalogPreview: DiscoveryCatalogPreviewDTO;
   sourceHref: string;
 };
 

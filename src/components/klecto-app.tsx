@@ -113,7 +113,7 @@ const moodLabels = {
 
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&q=85";
 
-export function KlectoApp({ initialData, initialDiscovery, initialView = "home" }: { initialData: CatalogDashboardDTO; initialDiscovery: DiscoveryFeedDTO; initialView?: View }) {
+export function KlectoApp({ initialData, initialDiscovery, initialPostId, initialView = "home" }: { initialData: CatalogDashboardDTO; initialDiscovery: DiscoveryFeedDTO; initialPostId?: string; initialView?: View }) {
   const [view, setView] = useState<View>(initialView);
   const [feedMode, setFeedMode] = useState<"For you" | "Following">("For you");
   const [filter, setFilter] = useState<FeedFilter>("Everything");
@@ -203,7 +203,7 @@ export function KlectoApp({ initialData, initialDiscovery, initialView = "home" 
       <motion.main className="main-column" initial={{ opacity: 0, y: 20, scale: 0.992 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.06, duration: 0.56, ease: [0.16, 1, 0.3, 1] }}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.22 }}>
-            {view === "home" && <DiscoveryHome feed={initialDiscovery} viewer={initialData.viewer} />}
+            {view === "home" && <DiscoveryHome feed={initialDiscovery} initialPostId={initialPostId} viewer={initialData.viewer} />}
             {view === "collections" && <CollectionsView onCreate={() => openCreate("collection")} data={initialData} />}
             {view === "matches" && <MatchesView onMessage={() => navigate("inbox")} onOpenCollector={setCollectorPreview} />}
             {view === "inbox" && <AdvancedInboxView onOpenCollector={setCollectorPreview} />}

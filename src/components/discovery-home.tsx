@@ -74,15 +74,16 @@ function updateEntry(entries: DiscoveryFeedEntryDTO[], id: string, recipe: (entr
   return entries.map((entry) => entry.id === id ? recipe(entry) : entry);
 }
 
-export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer: ViewerDTO | null }) {
+export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: DiscoveryFeedDTO; viewer: ViewerDTO | null; initialPostId?: string }) {
   const router = useRouter();
   const [filter, setFilter] = useState<DiscoveryFilter>("all");
   const [entries, setEntries] = useState(feed.entries);
   const [commentTarget, setCommentTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [wishlistTarget, setWishlistTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [mediaTarget, setMediaTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
-  const [postTarget, setPostTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [postTarget, setPostTarget] = useState<DiscoveryFeedEntryDTO | null>(() => feed.entries.find((entry) => entry.id === initialPostId) ?? null);
   const [wishlisterTarget, setWishlisterTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [catalogTarget, setCatalogTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const visibleEntries = useMemo(() => filter === "all" ? entries : entries.filter((entry) => entry.kind === filter), [entries, filter]);
@@ -91,6 +92,27 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
     setNotice(message);
     window.setTimeout(() => setNotice(null), 2800);
   };
+  const openPost = (entry: DiscoveryFeedEntryDTO) => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("view");
+    url.searchParams.set("post", entry.id);
+    window.history.pushState({ discoveryPost: entry.id }, "", url.pathname + url.search);
+    setPostTarget(entry);
+  };
+  const closePost = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("post");
+    window.history.replaceState({}, "", url.pathname + url.search);
+    setPostTarget(null);
+  };
+  useEffect(() => {
+    const syncPostFromUrl = () => {
+      const postId = new URL(window.location.href).searchParams.get("post");
+      setPostTarget(feed.entries.find((entry) => entry.id === postId) ?? null);
+    };
+    window.addEventListener("popstate", syncPostFromUrl);
+    return () => window.removeEventListener("popstate", syncPostFromUrl);
+  }, [feed.entries]);
 
   const toggleLike = (entry: DiscoveryFeedEntryDTO) => {
     const active = !entry.likedByViewer;
@@ -222,7 +244,7 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
           {visibleEntries.map((entry, index) => (
             <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} pending={isPending}
               onLike={() => toggleLike(entry)} onComment={() => setCommentTarget(entry)} onWishlist={() => setWishlistTarget(entry)}
-              onMedia={() => setMediaTarget(entry)} onOpenPost={() => setPostTarget(entry)} onWishlisters={() => setWishlisterTarget(entry)} />
+              onMedia={() => setMediaTarget(entry)} onOpenPost={() => openPost(entry)} onWishlisters={() => setWishlisterTarget(entry)} />
           ))}
         </AnimatePresence>
       </div>
@@ -232,10 +254,11 @@ export function DiscoveryHome({ feed, viewer }: { feed: DiscoveryFeedDTO; viewer
       <AnimatePresence>
         {commentTarget && <CommentDrawer entry={commentTarget} pending={isPending} onClose={() => setCommentTarget(null)} onSubmit={addComment} />}
         {wishlistTarget && <WishlistComposer entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
-        {postTarget && <PostDetail entry={postTarget} demo={feed.isDemoFallback} pending={isPending} onClose={() => setPostTarget(null)}
-          onLike={() => toggleLike(postTarget)} onComment={() => { setPostTarget(null); setCommentTarget(postTarget); }} onWishlist={() => setWishlistTarget(postTarget)}
+        {postTarget && <PostDetail entry={postTarget} demo={feed.isDemoFallback} pending={isPending} onClose={closePost}
+          onLike={() => toggleLike(postTarget)} onComment={() => { closePost(); setCommentTarget(postTarget); }} onWishlist={() => setWishlistTarget(postTarget)}
           onMedia={() => setMediaTarget(postTarget)} onWishlisters={() => setWishlisterTarget(postTarget)} />}
-        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} />}
+        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} onViewCollection={() => setCatalogTarget(mediaTarget)} />}
+        {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)} />}
         {wishlisterTarget && <WishlisterSheet entry={wishlisterTarget} demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
         {notice && <motion.div className={styles.notice} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>{notice}</motion.div>}
       </AnimatePresence>
@@ -282,7 +305,7 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
     </>
   );
   return (
-    <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`} layout
+    <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`}
       tabIndex={0}
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a, button")) onOpenPost(); }}
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !(event.target as HTMLElement).closest("a, button")) { event.preventDefault(); onOpenPost(); } }}
@@ -298,9 +321,19 @@ function DiscoveryCard({ entry, index, demo, pending, onLike, onComment, onWishl
       </div>
       {isWishlist && entry.quoteText && <p className={styles.quote}>{entry.quoteText}</p>}
       {isWishlist
-        ? <div className={styles.repostBox}><div className={styles.repostBoxLabel}><Repeat2 size={14} /> Original {kindLabels[entry.targetKind].toLowerCase()}</div>{sourceCard}</div>
+        ? <div className={styles.repostBox}><div className={styles.repostBoxLabel}><Repeat2 size={14} /> Original {kindLabels[entry.targetKind].toLowerCase()}</div><SourceOwner entry={entry} demo={demo} />{sourceCard}</div>
         : sourceCard}
     </motion.article>
+  );
+}
+
+function SourceOwner({ entry, demo }: { entry: DiscoveryFeedEntryDTO; demo: boolean }) {
+  const owner = entry.sourceAuthor;
+  return (
+    <a className={styles.sourceOwner} href={demo ? entry.sourceHref : `/u/${encodeURIComponent(owner.username)}`}>
+      {owner.avatarUrl ? <img src={owner.avatarUrl} alt="" /> : <span>{owner.displayName.slice(0, 1)}</span>}
+      <div><small>Original collector</small><b>{owner.displayName} <em>@{owner.username}</em></b></div><ChevronRight size={15} />
+    </a>
   );
 }
 
@@ -335,7 +368,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
   );
 }
 
-function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose: () => void }) {
+function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onViewCollection: () => void }) {
   const images = entry.imageUrls.length ? entry.imageUrls : [];
   const [activeIndex, setActiveIndex] = useState(0);
   const [immersive, setImmersive] = useState(false);
@@ -415,8 +448,32 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
         <footer>
           <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
           {images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}
-          <span>Swipe to browse</span>
+          <button type="button" className={styles.viewCollectionButton} onClick={onViewCollection}><Layers3 size={15} /> View collection</button>
         </footer>
+      </motion.section>
+    </motion.div>,
+    document.body,
+  );
+}
+
+function CatalogExplorerSheet({ entry, demo, onClose }: { entry: DiscoveryFeedEntryDTO; demo: boolean; onClose: () => void }) {
+  const preview = entry.catalogPreview;
+  const isCollection = entry.targetKind === "collection";
+  const isSubcollection = entry.targetKind === "subcollection";
+  const sectionId = isSubcollection ? entry.targetId : entry.subcollection?.id ?? null;
+  const items = isCollection ? preview.items : preview.items.filter((item) => item.subcollectionId === sectionId);
+  const heading = isCollection ? preview.collection.name : isSubcollection ? entry.subcollection?.name ?? entry.title : entry.title;
+  const eyebrow = isCollection ? "COLLECTION EXPLORER" : isSubcollection ? "SUBCOLLECTION EXPLORER" : "ITEM CONTEXT";
+  const collectionHref = demo ? entry.sourceHref : "/u/" + encodeURIComponent(entry.sourceAuthor.username) + "/collections/" + encodeURIComponent(preview.collection.slug);
+  return createPortal(
+    <motion.div className={styles.catalogExplorerBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+      <motion.section className={styles.catalogExplorerSheet} initial={{ y: 64, opacity: 0.72 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 64, opacity: 0.72 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={"Explore " + heading}>
+        <div className={styles.sheetHandle} />
+        <header><div><span>{eyebrow}</span><h3>{heading}</h3><p>{isCollection ? "Browse the sections and objects in this collection." : isSubcollection ? "Everything kept in this section." : "From " + (entry.subcollection?.name ?? preview.collection.name) + "."}</p></div><button type="button" onClick={onClose} aria-label="Close collection explorer"><X size={19} /></button></header>
+        {!isCollection && entry.subcollection && <a className={styles.explorerParent} href={collectionHref}><Layers3 size={17} /><span><small>PART OF</small><b>{preview.collection.name} / {entry.subcollection.name}</b></span><ChevronRight size={17} /></a>}
+        {isCollection && <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>SUBCOLLECTIONS</span><small>{preview.subcollections.length}</small></div><div className={styles.explorerSections}>{preview.subcollections.map((section) => <a key={section.id} href={entry.sourceHref}><div>{section.coverUrl ? <img src={section.coverUrl} alt="" /> : <Layers3 size={20} />}</div><span><small>{section.kind}</small><b>{section.name}</b><em>{section.itemCount} items <ChevronRight size={14} /></em></span></a>)}</div></section>}
+        <section className={styles.explorerSection}><div className={styles.explorerLabel}><span>{isCollection ? "ALL ITEMS" : isSubcollection ? "ITEMS IN THIS SECTION" : "RELATED ITEMS"}</span><small>{items.length}</small></div><div className={styles.explorerItems}>{items.map((item) => <a key={item.id} href={entry.sourceHref}><div>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <PackageOpen size={19} />}</div><span><b>{item.title}</b><small>{(item.subcollectionName ?? "Unsorted") + (item.description ? " / " + item.description : "")}</small></span></a>)}{!items.length && <div className={styles.explorerEmpty}>No public items in this part of the collection yet.</div>}</div></section>
+        <footer><a href={entry.sourceHref}>Open full catalogue <ChevronRight size={16} /></a></footer>
       </motion.section>
     </motion.div>,
     document.body,
@@ -444,6 +501,7 @@ function PostDetail({ entry, demo, pending, onClose, onLike, onComment, onWishli
             <div><b>{entry.author.displayName}</b><small>@{entry.author.username} / {relativeTime(entry.createdAt)}</small></div>
           </a>
           {entry.kind === "wishlist" && <div className={styles.postWishlisted}><Repeat2 size={15} /> Wishlisted this {kindLabels[entry.targetKind].toLowerCase()}</div>}
+          {entry.kind === "wishlist" && <SourceOwner entry={entry} demo={demo} />}
           {entry.quoteText && <p className={styles.postQuote}>{entry.quoteText}</p>}
           <button type="button" className={styles.postMedia} onClick={onMedia}>
             {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span><ImageIcon size={28} /></span>}
