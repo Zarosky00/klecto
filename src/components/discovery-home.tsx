@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Bell,
   Ban,
-  ArrowRight,
   Bookmark,
   Check,
   ChevronDown,
@@ -344,7 +343,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
           onMedia={() => setMediaTarget(postTarget)}
           onEngagement={(kind) => setEngagementTarget({ entry: postTarget, kind })}
           onSubmitComment={(body, parentId) => addCommentForTarget(postTarget, body, false, parentId)} />}
-        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} onViewCollection={() => setCatalogTarget(mediaTarget)} />}
+        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} />}
         {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
           onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
         {wishlisterTarget && <EngagementSheet entry={wishlisterTarget} kind="wishlist" demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
@@ -518,7 +517,7 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
   );
 }
 
-function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onViewCollection: () => void }) {
+function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose: () => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
@@ -627,7 +626,7 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
   };
   return createPortal(
-    <motion.div className={`${styles.mediaBackdrop} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+    <motion.div className={`${styles.mediaBackdrop} ${relatedOpen ? styles.mediaBackdropExpanded : ""} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
         <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTOS"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
@@ -641,7 +640,6 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
         <footer>
           <div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div>
           <motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button>
-          <motion.button type="button" className={styles.mediaCollectionArrow} onClick={onViewCollection} whileHover={{ x: 3 }} whileTap={{ scale: 0.86, x: 4 }} transition={{ type: "spring", stiffness: 420, damping: 20 }} aria-label="View collection"><ArrowRight size={17} /></motion.button>
         </footer>
         <AnimatePresence initial={false}>
           {relatedOpen && <motion.aside id="media-related-discoveries" className={styles.mediaRelatedPanel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}>
