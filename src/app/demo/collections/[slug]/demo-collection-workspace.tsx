@@ -11,6 +11,7 @@ import {
   Camera,
   Check,
   ChevronRight,
+  ChevronUp,
   Eye,
   Heart,
   ImagePlus,
@@ -54,6 +55,11 @@ type DemoDeleteConfirmation = {
   description: string;
   confirmLabel?: string;
   onConfirm: () => void;
+};
+type DemoMediaViewerState = {
+  item: DemoItem;
+  images: string[];
+  initialIndex: number;
 };
 
 const MAX_DEMO_PHOTOS = 8;
@@ -119,47 +125,73 @@ function useLongPress(onLongPress: () => void) {
   };
 }
 
+type BodyScrollLockSnapshot = {
+  scrollY: number;
+  bodyOverflow: string;
+  bodyPaddingRight: string;
+  bodyPosition: string;
+  bodyTop: string;
+  bodyLeft: string;
+  bodyRight: string;
+  bodyWidth: string;
+  htmlOverflow: string;
+  htmlOverscrollBehavior: string;
+};
+
+let bodyScrollLockDepth = 0;
+let bodyScrollLockSnapshot: BodyScrollLockSnapshot | null = null;
+
 function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
 
     const { body, documentElement } = document;
-    const scrollY = window.scrollY;
-    const previousStyles = {
-      overflow: body.style.overflow,
-      paddingRight: body.style.paddingRight,
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      htmlOverflow: documentElement.style.overflow,
-      htmlOverscrollBehavior: documentElement.style.overscrollBehavior,
-    };
-    const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
-    const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+    bodyScrollLockDepth += 1;
 
-    body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-    documentElement.style.overflow = "hidden";
-    documentElement.style.overscrollBehavior = "none";
-    if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
+    if (bodyScrollLockDepth === 1) {
+      const scrollY = window.scrollY;
+      bodyScrollLockSnapshot = {
+        scrollY,
+        bodyOverflow: body.style.overflow,
+        bodyPaddingRight: body.style.paddingRight,
+        bodyPosition: body.style.position,
+        bodyTop: body.style.top,
+        bodyLeft: body.style.left,
+        bodyRight: body.style.right,
+        bodyWidth: body.style.width,
+        htmlOverflow: documentElement.style.overflow,
+        htmlOverscrollBehavior: documentElement.style.overscrollBehavior,
+      };
+      const scrollbarWidth = window.innerWidth - documentElement.clientWidth;
+      const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+
+      body.style.overflow = "hidden";
+      body.style.position = "fixed";
+      body.style.top = `-${scrollY}px`;
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+      documentElement.style.overflow = "hidden";
+      documentElement.style.overscrollBehavior = "none";
+      if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
+    }
 
     return () => {
-      body.style.overflow = previousStyles.overflow;
-      body.style.paddingRight = previousStyles.paddingRight;
-      body.style.position = previousStyles.position;
-      body.style.top = previousStyles.top;
-      body.style.left = previousStyles.left;
-      body.style.right = previousStyles.right;
-      body.style.width = previousStyles.width;
-      documentElement.style.overflow = previousStyles.htmlOverflow;
-      documentElement.style.overscrollBehavior = previousStyles.htmlOverscrollBehavior;
-      window.scrollTo(0, scrollY);
+      bodyScrollLockDepth = Math.max(0, bodyScrollLockDepth - 1);
+      if (bodyScrollLockDepth !== 0 || !bodyScrollLockSnapshot) return;
+
+      const snapshot = bodyScrollLockSnapshot;
+      body.style.overflow = snapshot.bodyOverflow;
+      body.style.paddingRight = snapshot.bodyPaddingRight;
+      body.style.position = snapshot.bodyPosition;
+      body.style.top = snapshot.bodyTop;
+      body.style.left = snapshot.bodyLeft;
+      body.style.right = snapshot.bodyRight;
+      body.style.width = snapshot.bodyWidth;
+      documentElement.style.overflow = snapshot.htmlOverflow;
+      documentElement.style.overscrollBehavior = snapshot.htmlOverscrollBehavior;
+      bodyScrollLockSnapshot = null;
+      window.scrollTo(0, snapshot.scrollY);
     };
   }, [locked]);
 }
@@ -429,7 +461,7 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
   const [editingItem, setEditingItem] = useState<DemoItem | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [editingSubcollection, setEditingSubcollection] = useState(false);
-  const [mediaViewer, setMediaViewer] = useState<{ title: string; images: string[]; initialIndex: number } | null>(null);
+  const [mediaViewer, setMediaViewer] = useState<DemoMediaViewerState | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<DemoDeleteConfirmation | null>(null);
   const effectiveVisibility = visibility ?? collection.visibility;
   const hasActiveItemFilters = itemQuery || itemVisibilityFilter !== "all" || itemFavouriteFilter !== "all" || itemMoodFilter !== "all";
@@ -603,36 +635,36 @@ function DemoSubcollectionWorkspace({ collection, subcollection }: { collection:
         </div>
         <div className="subcollection-item-results" aria-live="polite"><span>{visibleItems.length === items.length ? `${items.length} ${items.length === 1 ? "item" : "items"}` : `${visibleItems.length} of ${items.length} items`}</span>{hasActiveItemFilters ? <button type="button" onClick={clearItemFilters}>Clear filters</button> : null}</div>
         <div className="subcollection-item-grid">
-          {visibleItems.map((item, index) => <DemoSubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 }} onToggleLike={() => toggleItemLike(item.id)} onComment={() => openComments({ type: "item", id: item.id, title: item.title })} onOpenDetail={() => setItemDetail(item)} onOpenMenu={() => setItemMenu(item)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: item.title, images, initialIndex })} />)}
+          {visibleItems.map((item, index) => <DemoSubcollectionItemCard key={item.id} item={item} order={index + 1} reaction={itemReactions[item.id] ?? { liked: false, likes: 0, comments: 0 }} onToggleLike={() => toggleItemLike(item.id)} onComment={() => openComments({ type: "item", id: item.id, title: item.title })} onOpenDetail={() => setItemDetail(item)} onOpenMenu={() => setItemMenu(item)} onOpenMedia={(mediaItem, images, initialIndex) => setMediaViewer({ item: mediaItem, images, initialIndex })} />)}
           {visibleItems.length === 0 ? <div className="studio-empty"><Layers3 size={24} /><strong>{items.length ? "No items match that view." : "This subcollection is ready."}</strong><p>{items.length ? "Try a different search or clear the filters." : "Add an item and a few images to start its visual story."}</p>{items.length ? <button className="text-button" type="button" onClick={clearItemFilters}>Clear filters</button> : null}</div> : null}
         </div>
       </section>
 
       <AnimatePresence>
-        {itemDetail ? <DemoCatalogItemDetailSheet item={itemDetail} subcollectionName={name} visibility={effectiveVisibility} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail.id)} onComment={() => openComments({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onSaveItem={saveItemFromDetail} onDelete={() => deleteItem(itemDetail)} onOpenMedia={(images, initialIndex) => setMediaViewer({ title: itemDetail.title, images, initialIndex })} /> : null}
-        {commentTarget ? <DemoCommentSheet target={commentTarget} comments={comments} ownerName={collection.owner.name} aboveItemDetail={Boolean(itemDetail)} onClose={() => setCommentTarget(null)} onSubmit={addComment} /> : null}
-        {itemMenu ? <DemoActionSheet title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => deleteItem(itemMenu)} /> : null}
-        {subcollectionMenuOpen ? <DemoActionSheet title={name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={() => void share()} onDelete={deleteSubcollection} /> : null}
-        {editingItem ? <DemoItemEditorSheet item={editingItem} subcollectionName={name} onClose={() => setEditingItem(null)} onSaved={saveItem} /> : null}
-        {addingItem ? <DemoItemEditorSheet subcollectionName={name} onClose={() => setAddingItem(false)} onSaved={saveItem} /> : null}
-        {editingSubcollection ? <DemoSubcollectionEditorSheet subcollection={{ ...subcollection, name, description, kind, visibility, coverUrl }} onClose={() => setEditingSubcollection(false)} onSaved={saveSubcollection} /> : null}
-        {mediaViewer ? <DemoMediaViewer title={mediaViewer.title} images={mediaViewer.images} initialIndex={mediaViewer.initialIndex} onClose={() => setMediaViewer(null)} /> : null}
-        {deleteConfirmation ? <DemoDeleteConfirmSheet confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}
+        {itemDetail ? <DemoCatalogItemDetailSheet key={`item-detail-${itemDetail.id}`} item={itemDetail} subcollectionName={name} visibility={effectiveVisibility} reaction={itemReactions[itemDetail.id] ?? { liked: false, likes: 0, comments: 0 }} onClose={() => setItemDetail(null)} onToggleLike={() => toggleItemLike(itemDetail.id)} onComment={() => openComments({ type: "item", id: itemDetail.id, title: itemDetail.title })} onShare={() => void shareItem(itemDetail)} onSaveItem={saveItemFromDetail} onDelete={() => deleteItem(itemDetail)} onOpenMedia={(mediaItem, images, initialIndex) => setMediaViewer({ item: mediaItem, images, initialIndex })} /> : null}
+        {commentTarget ? <DemoCommentSheet key={`comment-${commentTarget.type}-${commentTarget.id}`} target={commentTarget} comments={comments} ownerName={collection.owner.name} aboveItemDetail={Boolean(itemDetail)} onClose={() => setCommentTarget(null)} onSubmit={addComment} /> : null}
+        {itemMenu ? <DemoActionSheet key={`item-menu-${itemMenu.id}`} title={itemMenu.title} subtitle="ITEM OPTIONS" onClose={() => setItemMenu(null)} onEdit={() => { setEditingItem(itemMenu); setItemMenu(null); }} onShare={() => void shareItem(itemMenu)} onDelete={() => deleteItem(itemMenu)} /> : null}
+        {subcollectionMenuOpen ? <DemoActionSheet key={`subcollection-menu-${subcollection.id}`} title={name} subtitle="SUBCOLLECTION OPTIONS" onClose={() => setSubcollectionMenuOpen(false)} onEdit={() => { setSubcollectionMenuOpen(false); setEditingSubcollection(true); }} onShare={() => void share()} onDelete={deleteSubcollection} /> : null}
+        {editingItem ? <DemoItemEditorSheet key={`edit-item-${editingItem.id}`} item={editingItem} subcollectionName={name} onClose={() => setEditingItem(null)} onSaved={saveItem} /> : null}
+        {addingItem ? <DemoItemEditorSheet key="add-item" subcollectionName={name} onClose={() => setAddingItem(false)} onSaved={saveItem} /> : null}
+        {editingSubcollection ? <DemoSubcollectionEditorSheet key={`edit-subcollection-${subcollection.id}`} subcollection={{ ...subcollection, name, description, kind, visibility, coverUrl }} onClose={() => setEditingSubcollection(false)} onSaved={saveSubcollection} /> : null}
+        {mediaViewer ? <DemoMediaViewer key={`media-viewer-${mediaViewer.item.id}`} item={mediaViewer.item} images={mediaViewer.images} initialIndex={mediaViewer.initialIndex} onClose={() => setMediaViewer(null)} /> : null}
+        {deleteConfirmation ? <DemoDeleteConfirmSheet key={`delete-${deleteConfirmation.title}`} confirmation={deleteConfirmation} onClose={() => setDeleteConfirmation(null)} /> : null}
       </AnimatePresence>
       {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
     </main>
   );
 }
 
-function DemoSubcollectionItemCard({ item, order, reaction, onToggleLike, onComment, onOpenDetail, onOpenMenu, onOpenMedia }: { item: DemoItem; order: number; reaction: ReactionState; onToggleLike: () => void; onComment: () => void; onOpenDetail: () => void; onOpenMenu: () => void; onOpenMedia: (images: string[], initialIndex: number) => void }) {
+function DemoSubcollectionItemCard({ item, order, reaction, onToggleLike, onComment, onOpenDetail, onOpenMenu, onOpenMedia }: { item: DemoItem; order: number; reaction: ReactionState; onToggleLike: () => void; onComment: () => void; onOpenDetail: () => void; onOpenMenu: () => void; onOpenMedia: (item: DemoItem, images: string[], initialIndex: number) => void }) {
   const { preventClickAfterLongPress, ...pressHandlers } = useLongPress(onOpenMenu);
   return <motion.article className="subcollection-item-card" role="button" tabIndex={0} aria-label={`Open ${item.title}`} {...pressHandlers} onContextMenu={(event) => event.preventDefault()} onClick={() => { if (!preventClickAfterLongPress()) onOpenDetail(); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenDetail(); } }} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.36, delay: Math.min(order * 0.035, 0.18), ease: [0.16, 1, 0.3, 1] }} whileTap={{ scale: 0.992 }}><DemoItemMediaCarousel item={item} onOpenMedia={onOpenMedia} /><div className="subcollection-item-copy"><div className="subcollection-item-line"><span>#{String(order).padStart(2, "0")}</span><button onClick={(event) => { event.stopPropagation(); onOpenMenu(); }} aria-label={`More options for ${item.title}`}><MoreHorizontal size={17} /></button></div><small>{item.brand || item.mood}</small><h3>{item.title}</h3><p>{item.details || item.description || "Catalogued object"}</p><div className="catalog-reactions"><button className={reaction.liked ? "liked" : ""} onClick={(event) => { event.stopPropagation(); onToggleLike(); }}><Heart size={16} fill={reaction.liked ? "currentColor" : "none"} /> {reaction.likes}</button><button onClick={(event) => { event.stopPropagation(); onComment(); }}><MessageCircle size={16} /> {reaction.comments}</button></div></div></motion.article>;
 }
 
-function DemoItemMediaCarousel({ item, onOpenMedia }: { item: DemoItem; onOpenMedia: (images: string[], initialIndex: number) => void }) {
+function DemoItemMediaCarousel({ item, onOpenMedia }: { item: DemoItem; onOpenMedia: (item: DemoItem, images: string[], initialIndex: number) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const images = item.images;
-  return <div className="item-media-carousel demo-item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.length ? images.map((image, index) => <button className="item-media-slide" key={`${image}-${index}`} onClick={(event) => { event.stopPropagation(); onOpenMedia(images, index); }} aria-label={`Open photo ${index + 1} of ${item.title}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}<button className="item-media-zoom" onClick={(event) => { event.stopPropagation(); onOpenMedia(images, activeIndex); }} aria-label={`View ${item.title} fullscreen`}><ZoomIn size={15} /></button>{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
+  return <div className="item-media-carousel demo-item-media-carousel"><div className="item-media-scroll" onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.length ? images.map((image, index) => <button className="item-media-slide" key={`${image}-${index}`} onClick={(event) => { event.stopPropagation(); onOpenMedia(item, images, index); }} aria-label={`Open photo ${index + 1} of ${item.title}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>) : <div className="item-media-empty"><Layers3 size={24} /></div>}</div>{images.length > 1 ? <div className="item-media-indicator"><span>{activeIndex + 1}/{images.length}</span><div>{images.map((image, index) => <i className={activeIndex === index ? "active" : ""} key={`${image}-dot`} />)}</div></div> : null}<button className="item-media-zoom" onClick={(event) => { event.stopPropagation(); onOpenMedia(item, images, activeIndex); }} aria-label={`View ${item.title} fullscreen`}><ZoomIn size={15} /></button>{item.isFavorite ? <span className="item-favourite"><Star size={13} fill="currentColor" /></span> : null}{item.visibility === "private" ? <span className="item-private"><LockKeyhole size={13} /></span> : null}</div>;
 }
 
 function DemoCatalogItemDetailSheet({
@@ -658,7 +690,7 @@ function DemoCatalogItemDetailSheet({
   onShare: () => void;
   onSaveItem: (item: DemoItem) => void;
   onDelete: () => void;
-  onOpenMedia: (images: string[], initialIndex: number) => void;
+  onOpenMedia: (item: DemoItem, images: string[], initialIndex: number) => void;
 }) {
   useBodyScrollLock(true);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -685,6 +717,17 @@ function DemoCatalogItemDetailSheet({
     { label: "Added", value: shortDate(item.createdAt) },
     { label: "Photos", value: `${images.length} ${images.length === 1 ? "photo" : "photos"}` },
   ].filter((entry): entry is { label: string; value: string } => Boolean(entry.value));
+  const viewerItem: DemoItem = {
+    ...item,
+    title: displayedTitle,
+    description: isEditing ? description : item.description,
+    brand: isEditing ? brand.trim() || null : item.brand,
+    details: isEditing ? details : item.details,
+    mood: isEditing ? mood : item.mood,
+    visibility: isEditing ? itemVisibility : item.visibility,
+    isFavorite: displayedFavorite,
+    images,
+  };
 
   const resetEditor = () => {
     setTitle(item.title);
@@ -782,7 +825,7 @@ function DemoCatalogItemDetailSheet({
               }}
             >
               {images.map((image, index) => (
-                <button className="catalog-item-detail-gallery-slide" type="button" key={`${image}-${index}`} onClick={() => onOpenMedia(images, index)} aria-label={`Open photo ${index + 1} fullscreen`}>
+                <button className="catalog-item-detail-gallery-slide" type="button" key={`${image}-${index}`} onClick={() => onOpenMedia(viewerItem, images, index)} aria-label={`Open photo ${index + 1} fullscreen`}>
                   <img src={image} alt={`${displayedTitle}, photo ${index + 1}`} />
                 </button>
               ))}
@@ -1037,10 +1080,82 @@ function DemoSubcollectionEditorSheet({ subcollection, onClose, onSaved }: { sub
   return <motion.div className="catalog-editor-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="catalog-editor-sheet subcollection-editor-sheet" initial={{ opacity: 0, y: 24, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">EDIT SUBCOLLECTION</span><h2>{subcollection.name}</h2></div><button onClick={onClose} aria-label="Close subcollection editor"><X size={20} /></button></header><label className="subcollection-cover-upload"><div>{coverUrl ? <img src={coverUrl} alt="Subcollection cover preview" /> : <Layers3 size={25} />}</div><span><Camera size={16} /> Change cover</span><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) selectCover(file); event.currentTarget.value = ""; }} /></label><div className="catalog-editor-grid"><label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} /></label><label><span>Kind</span><select value={kind} onChange={(event) => setKind(event.target.value as DemoSubcollection["kind"])}><option value="brand">Brand</option><option value="series">Series</option><option value="era">Era</option><option value="custom">Custom</option></select></label><label><span>Visibility</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility | "inherit")}><option value="inherit">Inherit collection privacy</option><option value="public">Public</option><option value="followers">Followers</option><option value="private">Private</option></select></label><label className="wide"><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={600} /></label></div>{error ? <div className="create-error">{error}</div> : null}<footer><button className="text-button" onClick={onClose}>Cancel</button><button className="primary-button" onClick={save}><Save size={16} /> Save subcollection</button></footer></motion.section></motion.div>;
 }
 
-function DemoMediaViewer({ title, images, initialIndex, onClose }: { title: string; images: string[]; initialIndex: number; onClose: () => void }) {
+function DemoMediaViewer({ item, images, initialIndex, onClose }: { item: DemoItem; images: string[]; initialIndex: number; onClose: () => void }) {
+  useBodyScrollLock(true);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [zoomed, setZoomed] = useState(false);
-  return <motion.div className="demo-media-viewer-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.section className="demo-media-viewer" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">PHOTO VIEWER</span><h2>{title}</h2></div><div><button className={zoomed ? "active" : ""} onClick={() => setZoomed((current) => !current)} aria-label="Toggle image zoom"><ZoomIn size={18} /></button><button onClick={onClose} aria-label="Close photo viewer"><X size={20} /></button></div></header><div className={`demo-media-viewer-scroll ${zoomed ? "is-zoomed" : ""}`} onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>{images.map((image, index) => <img src={image} alt={`${title}, photo ${index + 1}`} key={`${image}-${index}`} />)}</div><footer><span>{activeIndex + 1}/{images.length}</span><small>Swipe to browse · tap the zoom button to inspect</small></footer></motion.section></motion.div>;
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [immersive, setImmersive] = useState(false);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const detailsSwipeStart = useRef<number | null>(null);
+  const detailsOpenedBySwipe = useRef(false);
+  const detailsId = `demo-media-details-${item.id}`;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (immersive) return setImmersive(false);
+      if (detailsOpen) return setDetailsOpen(false);
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detailsOpen, immersive, onClose]);
+
+  const selectPhoto = (index: number) => {
+    const gallery = galleryRef.current;
+    if (gallery) gallery.scrollTo({ left: gallery.clientWidth * index, behavior: "smooth" });
+    setActiveIndex(index);
+  };
+
+  const toggleImmersive = () => {
+    setZoomed(false);
+    setDetailsOpen(false);
+    setImmersive((current) => !current);
+  };
+
+  const openDetailsFromSwipe = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (detailsSwipeStart.current !== null && detailsSwipeStart.current - event.clientY > 28) {
+      detailsOpenedBySwipe.current = true;
+      setDetailsOpen(true);
+    }
+    detailsSwipeStart.current = null;
+  };
+
+  const facts = [
+    { label: "Brand", value: item.brand || "Unmarked" },
+    { label: "Details", value: item.details || "Catalogued object" },
+    { label: "Mood", value: item.mood },
+    { label: "Visibility", value: visibilityLabel(item.visibility) },
+  ];
+
+  return <motion.div className={`demo-media-viewer-backdrop${immersive ? " demo-media-viewer-backdrop--immersive" : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+    <motion.section layout className={`demo-media-viewer${immersive ? " demo-media-viewer--immersive" : ""}`} role="dialog" aria-modal="true" aria-label={`${item.title} photo viewer`} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ type: "spring", damping: 28, stiffness: 300 }} onClick={(event) => event.stopPropagation()}>
+      <header className="demo-media-viewer-header">
+        <div className="demo-media-viewer-title"><span className="eyebrow">PHOTO VIEWER</span><h2>{item.title}</h2></div>
+        <div className="demo-media-viewer-header-actions">
+          <button className={`demo-media-viewer-zoom-toggle ${zoomed ? "active" : ""}`} type="button" onClick={() => setZoomed((current) => !current)} aria-label="Toggle image zoom"><ZoomIn size={18} /></button>
+          <button className="demo-media-viewer-close" type="button" onClick={onClose} aria-label="Close photo viewer"><X size={20} /></button>
+        </div>
+      </header>
+      <div ref={galleryRef} className={`demo-media-viewer-scroll ${zoomed ? "is-zoomed" : ""}`} onScroll={(event) => { const width = event.currentTarget.clientWidth; if (width) setActiveIndex(Math.min(images.length - 1, Math.max(0, Math.round(event.currentTarget.scrollLeft / width)))); }}>
+        {images.map((image, index) => <button className="demo-media-viewer-slide" type="button" onClick={toggleImmersive} aria-label={immersive ? "Return to photo viewer" : `Open photo ${index + 1} without the viewer frame`} key={`${image}-${index}`}><img src={image} alt={`${item.title}, photo ${index + 1}`} /></button>)}
+      </div>
+      <footer className="demo-media-viewer-footer">
+        <span className="demo-media-viewer-count" aria-live="polite">{activeIndex + 1}/{images.length}</span>
+        {images.length > 1 ? <div className="demo-media-viewer-dots" role="tablist" aria-label="Photo position">{images.map((image, index) => <button type="button" key={`${image}-dot`} className={index === activeIndex ? "active" : ""} onClick={() => selectPhoto(index)} aria-label={`Show photo ${index + 1} of ${images.length}`} aria-selected={index === activeIndex} role="tab"><i /></button>)}</div> : <span className="demo-media-viewer-dots-spacer" />}
+        <button className={`demo-media-viewer-details-toggle ${detailsOpen ? "is-open" : ""}`} type="button" aria-expanded={detailsOpen} aria-controls={detailsId} onPointerDown={(event) => { detailsSwipeStart.current = event.clientY; detailsOpenedBySwipe.current = false; }} onPointerUp={openDetailsFromSwipe} onPointerCancel={() => { detailsSwipeStart.current = null; }} onClick={() => { if (detailsOpenedBySwipe.current) { detailsOpenedBySwipe.current = false; return; } setDetailsOpen((current) => !current); }}><span>{item.description || "View item details"}</span><ChevronUp size={15} /></button>
+      </footer>
+      <AnimatePresence initial={false}>
+        {detailsOpen ? <motion.aside id={detailsId} className="demo-media-viewer-details" aria-label={`${item.title} details`} initial={{ y: "104%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "104%", opacity: 0 }} transition={{ type: "spring", damping: 28, stiffness: 310 }}>
+          <button className="demo-media-viewer-details-handle" type="button" onClick={() => setDetailsOpen(false)} aria-label="Close item details"><i /></button>
+          <div className="demo-media-viewer-details-heading"><span className="eyebrow">OBJECT DETAILS</span><h3>{item.title}</h3></div>
+          <p className="demo-media-viewer-description">{item.description || "No description has been added to this object yet."}</p>
+          <dl className="demo-media-viewer-facts">{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}<div><dt>Favourite</dt><dd>{item.isFavorite ? "Saved favourite" : "Not marked"}</dd></div></dl>
+        </motion.aside> : null}
+      </AnimatePresence>
+    </motion.section>
+  </motion.div>;
 }
 
 function DemoWorkspaceNote() {
