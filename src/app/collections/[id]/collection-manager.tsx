@@ -267,7 +267,6 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
     }
   };
 
-  const ungroupedItems = collection.items.filter((item) => !item.subcollectionId);
   const visibleSubcollections = useMemo(() => {
     const normalizedQuery = catalogQuery.trim().toLocaleLowerCase();
     return collection.subcollections
@@ -351,9 +350,9 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
         ) : null}
 
         <section className="studio-route-section collection-catalog">
-          <div className="studio-section-head workspace-section-head">
-            <div><span className="eyebrow">STEP 1 · CHOOSE A SUBCOLLECTION</span><h2>Subcollections</h2><p>Open a subcollection to browse its items on its own page.</p></div>
-            <div className="collection-catalog-actions"><Link className="secondary-button" href={`/?create=item&collection=${collection.id}`}><Plus size={16} /> Add item</Link><button className="primary-button" onClick={() => setShowAddSubcollection((current) => !current)}><Plus size={16} /> New section</button></div>
+          <div className="collection-catalog-head collection-catalog-head--solo">
+            <div><span className="eyebrow">THE SHELVES</span><h2>Browse the collection</h2><p>Open a section when you want the full story, or create the next shelf here.</p></div>
+            <div className="collection-catalog-actions collection-catalog-actions--solo"><button className="primary-button collection-catalog-create" onClick={() => setShowAddSubcollection((current) => !current)}><Plus size={16} /> New section</button></div>
           </div>
 
           <div className="collection-catalog-toolbar">
@@ -395,19 +394,6 @@ function CollectionWorkspace({ viewer, collection, templates }: Omit<CollectionM
         ) : null}
 
         {selectedSubcollection ? <div className="catalog-action-backdrop" role="presentation" onClick={() => setSelectedSubcollection(null)}><section className="catalog-action-sheet" role="dialog" aria-modal="true" aria-label={`${selectedSubcollection.name} options`} onClick={(event) => event.stopPropagation()}><span className="eyebrow">SECTION DETAILS</span><h2>{selectedSubcollection.name}</h2><p className="collection-action-summary">{selectedSubcollection.description || "A focused part of this collection."}</p><button onClick={() => { window.location.href = `/collections/${collection.id}/subcollections/${selectedSubcollection.id}`; }}><ChevronRight size={18} /> Open and edit section</button><button className="danger" disabled={pending} onClick={() => { const target = selectedSubcollection; setSelectedSubcollection(null); deleteSubcollection(target); }}><Trash2 size={18} /> Delete section</button><button className="cancel" onClick={() => setSelectedSubcollection(null)}>Cancel</button></section></div> : null}
-
-        {ungroupedItems.length ? <section className="studio-items-section studio-direct-items collection-unsorted-section">
-          <div className="studio-section-head"><div><span className="eyebrow">STEP 2 · ITEMS WITHOUT A SUBCOLLECTION</span><h2>{collection.subcollections.length ? "Unsorted items" : "Items"}</h2></div><Link href="/">Add item from Klecto <Plus size={15} /></Link></div>
-          <ItemGrid items={ungroupedItems} pending={pending} onDelete={(item) => {
-            if (!window.confirm(`Delete “${item.title}”?`)) return;
-            startTransition(async () => {
-              const result = await deleteItemAction(item.id);
-              if (!result.ok) return setNotice({ type: "error", text: result.error ?? "Item could not be deleted." });
-              setNotice({ type: "success", text: "Item deleted." });
-              window.setTimeout(() => window.location.reload(), 300);
-            });
-          }} emptyTitle={collection.subcollections.length ? "Everything is neatly grouped." : "Nothing catalogued yet."} emptyBody={collection.subcollections.length ? "Open a subcollection to browse its items, or add a new item directly to this shelf." : "Add an item from Klecto, then assign it to a subcollection when you are ready."} />
-        </section> : null}
 
         {notice ? <div className={`settings-message floating ${notice.type}`} role="status">{notice.type === "success" ? <Check size={17} /> : null}{notice.text}</div> : null}
       </section>

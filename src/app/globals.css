@@ -984,3 +984,12 @@ body {
 @media (max-width: 640px) {
   .subcollection-item-toolbar { flex-wrap: wrap; padding: 8px; gap: 7px; }.subcollection-item-search { min-width: 0; flex-basis: 100%; min-height: 39px; }.subcollection-item-sort { min-width: 0; flex: 1; min-height: 39px; }.subcollection-item-sort select { width: 100%; max-width: none; }.subcollection-item-filter { min-height: 39px; }.subcollection-item-filter-popover { width: min(216px, calc(100vw - 32px)); }.subcollection-item-results { margin-bottom: 11px; }
 }
+
+/* A collection starts with shelves. The single creation action is compact rather than a half-empty button row. */
+.collection-catalog-head--solo { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }.collection-catalog-actions--solo { flex: 0 0 auto; justify-content: flex-end; }.collection-catalog-actions--solo > .collection-catalog-create { flex: 0 0 auto; min-width: 142px; padding-inline: 14px; box-shadow: 0 10px 19px rgb(29 32 21 / 13%); }.collection-catalog-actions--solo > .collection-catalog-create:hover { transform: translateY(-2px); }
+@media (max-width: 780px) {
+  .collection-catalog-head.collection-catalog-head--solo { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }.collection-catalog-head--solo .collection-catalog-actions--solo { width: auto; align-self: end; justify-content: flex-end; }
+}
+@media (max-width: 400px) {
+  .collection-catalog-head.collection-catalog-head--solo { grid-template-columns: 1fr; }.collection-catalog-head--solo .collection-catalog-actions--solo { justify-self: start; align-self: start; }
+}
