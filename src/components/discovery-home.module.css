@@ -67,6 +67,8 @@
 .mediaEmpty { display: grid; place-content: center; justify-items: center; gap: 9px; color: #c7d2af; font-size: 12px; }
 .mediaViewer footer { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; color: #b8c1a4; font-size: 11px; }
 .viewCollectionButton { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgb(222 255 132 / 32%); border-radius: 10px; background: rgb(222 255 132 / 11%); color: #e3f99b; padding: 7px 9px; font-size: 10px; font-weight: 800; }
+.mediaCollectionArrow { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(220 240 194 / 28%); border-radius: 50%; background: rgb(255 255 255 / 7%); color: #e5f3bd; padding: 0; transition: border-color .2s ease, background .2s ease, color .2s ease; }
+.mediaCollectionArrow:hover { border-color: rgb(220 240 194 / 58%); background: rgb(220 240 194 / 15%); color: #f7ffe3; }
 .mediaDots { display: flex; align-items: center; gap: 5px; }
 .mediaDots button { width: 5px; height: 5px; border: 0; border-radius: 99px; background: rgb(255 255 255 / 35%); padding: 0; transition: width .2s ease, background .2s ease; }
 .mediaDots button.activeDot { width: 18px; background: #dfff78; }
@@ -146,7 +148,7 @@
   .explorerPreview { grid-template-columns: 112px minmax(0, 1fr); margin-inline: 13px; }
   .explorerPreviewImage { min-height: 112px; }
   .mediaViewer footer { gap: 7px; padding-inline: 12px; }
-  .viewCollectionButton { border-color: #dbe4d2; background: #f6faf2; color: #62734e; padding: 6px 7px; font-size: 9px; }
+  .mediaCollectionArrow { width: 31px; height: 31px; }
 }
 @media (max-width: 780px) {
   :global(.feed-header) { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgb(255 254 250 / 97%) !important; }
@@ -210,14 +212,6 @@
 .cardFollowButton { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; border: 1px solid #20261a; border-radius: 9px 9px 9px 3px; background: #20261a; box-shadow: 0 7px 15px rgb(24 30 18 / 18%), inset 0 1px 0 rgb(255 255 255 / 14%); color: #f7faed; padding: 0 8px; font-size: 9px; font-weight: 850; transition: background .2s ease, transform .2s ease; }
 .cardFollowButton:hover { background: #354128; transform: translateY(-1px); }
 .cardFollowButton.following { border-color: #cbd3c1; background: #eef1e9; box-shadow: none; color: #65715d; }
-.collectionLabel { display: flex; min-height: 34px; align-items: center; gap: 9px; margin-bottom: 13px; color: #4c5d38; }
-.collectionLabel:hover { color: #304226; }
-.collectionTypeIcon { display: grid; width: 29px; height: 29px; flex: 0 0 auto; place-items: center; border-radius: 9px 9px 9px 3px; background: #20261a; box-shadow: 0 5px 12px rgb(27 34 20 / 14%), inset 0 1px 0 rgb(255 255 255 / 14%); color: #eff6d9; }
-.collectionLabelText { display: grid; min-width: 0; flex: 1; gap: 2px; }
-.collectionLabelText small { color: #849171; font-size: 8px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-.collectionLabelText strong { overflow: hidden; color: #4a5c36; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
-.collectionLabel > svg { flex: 0 0 auto; color: #8a977b; transition: transform .2s ease, color .2s ease; }
-.collectionLabel:hover > svg { transform: translateX(2px); color: #4e6e2e; }
 @media (max-width: 640px) {
   .cardFollowButton span { display: none; }
   .cardFollowButton { width: 28px; justify-content: center; padding: 0; }

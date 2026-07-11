@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Bell,
   Ban,
+  ArrowRight,
   Bookmark,
   Check,
   ChevronDown,
@@ -357,7 +358,7 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
   const sourceCard = (
     <>
       <a href={entry.sourceHref} className={`collection-label ${styles.collectionLabel}`}>
-        <span className={styles.collectionTypeIcon}><KindIcon kind={entry.targetKind} /></span><span className={styles.collectionLabelText}><small>{kindLabels[entry.targetKind]}</small><strong>{entrySource(entry)}</strong></span><ChevronRight size={15} />
+        <span><KindIcon kind={entry.targetKind} /></span><span>{entrySource(entry)}</span><b>{kindLabels[entry.targetKind]}</b><ChevronRight size={14} />
       </a>
       <h2>{entry.title}</h2>
       {entry.description && <p className="post-copy">{entry.description}</p>}
@@ -579,7 +580,7 @@ function MediaViewer({ entry, onClose, onViewCollection }: { entry: DiscoveryFee
         <footer>
           <span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>
           {images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}
-          <button type="button" className={styles.viewCollectionButton} onClick={onViewCollection}><Layers3 size={15} /> View collection</button>
+          <motion.button type="button" className={styles.mediaCollectionArrow} onClick={onViewCollection} whileHover={{ x: 3 }} whileTap={{ scale: 0.86, x: 4 }} transition={{ type: "spring", stiffness: 420, damping: 20 }} aria-label="View collection"><ArrowRight size={17} /></motion.button>
         </footer>
       </motion.section>
     </motion.div>,
