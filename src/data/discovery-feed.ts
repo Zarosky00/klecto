@@ -163,7 +163,7 @@ function fallbackFeed(): DiscoveryFeedDTO {
         id: "demo-item-controller", kind: "item", targetKind: "item", targetId: "demo-controller",
         author, sourceAuthor: author, collection, subcollection: toyBox, title: "Midnight game controller",
         description: "The controller that survived every weekend tournament with one stubborn trigger.", quoteText: null,
-        imageUrls: [demoImage.item], imageCount: 3, mood: "memory", createdAt: now,
+        imageUrls: [demoImage.item, demoImage.object, demoImage.section], imageCount: 3, mood: "memory", createdAt: now,
         likeCount: 24, likedByViewer: false, commentCount: 4, viewCount: 219, comments: demoComments, wishlistCount: 8, wishlisters: [maya], likers: [maya, author], catalogPreview, sourceHref: href,
       },
       {
@@ -171,7 +171,7 @@ function fallbackFeed(): DiscoveryFeedDTO {
         author: maya, sourceAuthor: author,
         collection, subcollection: paperTrail, title: "Library card",
         description: "Paper card · 2006 · worn", quoteText: "I want to find one like this before the year ends.",
-        imageUrls: [demoImage.object], imageCount: 2, mood: "neutral", createdAt: now,
+        imageUrls: [demoImage.object, demoImage.section], imageCount: 2, mood: "neutral", createdAt: now,
         likeCount: 12, likedByViewer: false, commentCount: 2, viewCount: 184, comments: demoComments.slice(0, 1), wishlistCount: 1, wishlisters: [maya], likers: [maya], catalogPreview, sourceHref: href,
       },
     ],

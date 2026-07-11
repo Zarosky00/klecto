@@ -149,11 +149,16 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
 
   const toggleLike = (entry: DiscoveryFeedEntryDTO) => {
     const active = !entry.likedByViewer;
-    const optimistic = () => setEntries((current) => updateEntry(current, entry.id, (item) => ({
-      ...item,
-      likedByViewer: active,
-      likeCount: Math.max(0, item.likeCount + (active ? 1 : -1)),
-    })));
+    const optimistic = () => {
+      const update = (current: DiscoveryFeedEntryDTO) => ({
+        ...current,
+        likedByViewer: active,
+        likeCount: Math.max(0, current.likeCount + (active ? 1 : -1)),
+      });
+      setEntries((current) => updateEntry(current, entry.id, update));
+      setPostTarget((current) => current?.id === entry.id ? update(current) : current);
+      setMediaTarget((current) => current?.id === entry.id ? update(current) : current);
+    };
     if (feed.isDemoFallback) {
       optimistic();
       return;
@@ -343,7 +348,10 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
           onMedia={() => setMediaTarget(postTarget)}
           onEngagement={(kind) => setEngagementTarget({ entry: postTarget, kind })}
           onSubmitComment={(body, parentId) => addCommentForTarget(postTarget, body, false, parentId)} />}
-        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)} />}
+        {mediaTarget && <MediaViewer entry={mediaTarget} onClose={() => setMediaTarget(null)}
+          onLike={() => toggleLike(mediaTarget)}
+          onComment={() => { setMediaTarget(null); setCommentTarget(mediaTarget); }}
+          onWishlist={() => { setMediaTarget(null); setWishlistTarget(mediaTarget); }} />}
         {catalogTarget && <CatalogExplorerSheet entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
           onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
         {wishlisterTarget && <EngagementSheet entry={wishlisterTarget} kind="wishlist" demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
@@ -517,9 +525,10 @@ function CommentDrawer({ entry, pending, onClose, onSubmit }: { entry: Discovery
   );
 }
 
-function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose: () => void }) {
+function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: () => void; onComment: () => void; onWishlist: () => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
   const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
   const [activeIndex, setActiveIndex] = useState(0);
   const [immersive, setImmersive] = useState(false);
@@ -623,13 +632,12 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
     setActiveIndex(0);
     setZoom(1);
     setImmersive(false);
-    setRelatedOpen(false);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
   };
   return createPortal(
     <motion.div className={`${styles.mediaBackdrop} ${relatedOpen ? styles.mediaBackdropExpanded : ""} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
       <motion.section layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
-        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTOS"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
+        <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTOS"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3><a href={`/u/${encodeURIComponent(entry.author.username)}`} className={styles.mediaViewerAuthor}><span className={styles.mediaViewerAvatar}>{entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : entry.author.displayName.slice(0, 1)}</span><span><strong>{entry.author.displayName}</strong><small>@{entry.author.username}</small></span></a></div><button type="button" onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
           const nextIndex = Math.round(event.currentTarget.scrollLeft / width);
@@ -639,8 +647,13 @@ function MediaViewer({ entry, onClose }: { entry: DiscoveryFeedEntryDTO; onClose
           {images.length ? images.map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${entry.title} photo ${index + 1}`} draggable={false} onClick={toggleFullscreen} style={index === activeIndex ? { transform: `scale(${zoom})` } : undefined} />) : <div className={styles.mediaEmpty}><ImageIcon size={32} /><span>No images added yet</span></div>}
         </div>
         <footer>
-          <div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div>
-          <motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button>
+          <div className={styles.mediaFooterMain}><div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div><motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button></div>
+          <div className={styles.mediaEngagement} aria-label="Photo engagement">
+            <button type="button" className={entry.likedByViewer ? styles.mediaEngagementActive : undefined} onClick={onLike}><Heart size={16} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
+            <button type="button" onClick={onComment}><MessageCircle size={16} /><span>{entry.commentCount}</span></button>
+            <button type="button" className={saved ? styles.mediaEngagementActive : undefined} onClick={() => setSaved((current) => !current)}><Bookmark size={16} fill={saved ? "currentColor" : "none"} /><span>{saved ? "Saved" : "Save"}</span></button>
+            <button type="button" onClick={onWishlist}><Repeat2 size={16} /><span>Wishlist</span></button>
+          </div>
         </footer>
         <AnimatePresence initial={false}>
           {relatedOpen && <motion.aside id="media-related-discoveries" className={styles.mediaRelatedPanel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}>
