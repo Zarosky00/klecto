@@ -1,0 +1,305 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import {
+  createCollectionMutation,
+  createCollectionPostMutation,
+  createWishlistPostMutation,
+  createCatalogCommentMutation,
+  appendItemMediaMutation,
+  createItemMutation,
+  createSubcollectionMutation,
+  deleteCollectionMutation,
+  deleteItemMutation,
+  deleteSubcollectionMutation,
+  recordCollectionShareMutation,
+  recordCatalogViewMutation,
+  setCollectionLikeMutation,
+  setItemLikeMutation,
+  setSubcollectionLikeMutation,
+  updateCollectionMutation,
+  updateItemMutation,
+  updateProfileMutation,
+  updateSubcollectionMutation,
+} from "@/data/catalog-mutations";
+import type { ActionResult } from "@/lib/catalog-types";
+
+const nullableText = (max: number) => z.string().trim().max(max).nullable();
+const visibility = z.enum(["public", "followers", "private"]);
+
+const profileSchema = z.object({
+  username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/),
+  displayName: z.string().trim().min(1).max(60),
+  bio: nullableText(240),
+  location: nullableText(100),
+  website: z.union([z.url().max(300), z.literal(""), z.null()]).transform((value) => value || null),
+  avatarPath: nullableText(500),
+  bannerPath: nullableText(500),
+  accountVisibility: visibility,
+  allowMessagesFrom: z.enum(["everyone", "followers", "matches", "nobody"]),
+  showSimilarity: z.boolean(),
+});
+
+const collectionSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: nullableText(1000),
+  templateId: z.string().uuid().nullable(),
+  visibility,
+});
+
+const updateCollectionSchema = collectionSchema.extend({
+  id: z.string().uuid(),
+  coverPath: nullableText(500).optional(),
+});
+
+const collectionPostSchema = z.object({
+  collectionId: z.string().uuid(),
+  body: nullableText(3000),
+  visibility,
+});
+
+const wishlistPostSchema = z.object({
+  targetType: z.enum(["collection", "subcollection", "item"]),
+  targetId: z.string().uuid(),
+  quoteText: nullableText(600),
+});
+
+const collectionShareSchema = z.object({
+  collectionId: z.string().uuid(),
+  channel: z.enum(["copy_link", "external"]),
+});
+
+const subcollectionSchema = z.object({
+  collectionId: z.string().uuid(),
+  name: z.string().trim().min(1).max(80),
+  description: nullableText(600),
+  kind: z.enum(["brand", "series", "era", "custom"]),
+  visibility: visibility.nullable(),
+});
+
+const updateSubcollectionSchema = subcollectionSchema.extend({
+  id: z.string().uuid(),
+  coverPath: nullableText(500).optional(),
+});
+
+const reactionSchema = z.object({
+  id: z.string().uuid(),
+  active: z.boolean(),
+  collectionId: z.string().uuid(),
+  subcollectionId: z.string().uuid().nullable().optional(),
+});
+
+const catalogCommentSchema = z.object({
+  collectionId: z.string().uuid(),
+  targetCollectionId: z.string().uuid().nullable().optional().default(null),
+  itemId: z.string().uuid().nullable(),
+  subcollectionId: z.string().uuid().nullable(),
+  body: z.string().trim().min(1).max(2000),
+}).refine((input) => Number(Boolean(input.targetCollectionId)) + Number(Boolean(input.itemId)) + Number(Boolean(input.subcollectionId)) === 1, {
+  message: "Choose one collection, subcollection, or item to comment on.",
+});
+
+const catalogViewSchema = z.object({
+  targetType: z.enum(["collection", "subcollection", "item"]),
+  targetId: z.string().uuid(),
+});
+
+const itemSchema = z.object({
+  id: z.string().uuid().optional(),
+  collectionId: z.string().uuid(),
+  subcollectionId: z.string().uuid().nullable(),
+  title: z.string().trim().min(1).max(140),
+  description: nullableText(4000),
+  brand: nullableText(100),
+  model: nullableText(120),
+  year: z.number().int().min(1000).max(2200).nullable(),
+  condition: nullableText(80),
+  mood: z.enum(["grail", "memory", "favorite", "regret", "neutral"]),
+  isFavorite: z.boolean(),
+  visibility: visibility.nullable(),
+  mediaPaths: z.array(z.string().min(3).max(500)).max(8),
+});
+
+const itemTagSchema = z.string().trim().min(1).max(50).transform((value) => value.toLocaleLowerCase());
+
+const createItemSchema = itemSchema.extend({
+  mediaPaths: z.array(z.string().min(3).max(500)).min(1).max(8),
+  tags: z.array(itemTagSchema).max(8).optional().default([]),
+}).superRefine((input, context) => {
+  if (new Set(input.tags).size !== input.tags.length) {
+    context.addIssue({ code: "custom", path: ["tags"], message: "Each tag can only be used once." });
+  }
+});
+
+const appendItemMediaSchema = z.object({
+  itemId: z.string().uuid(),
+  collectionId: z.string().uuid(),
+  mediaPaths: z.array(z.string().min(3).max(500)).min(1).max(8),
+  subcollectionId: z.string().uuid().nullable().optional(),
+});
+
+function invalid(error: z.ZodError): ActionResult {
+  return { ok: false, error: error.issues[0]?.message ?? "Check the form and try again." };
+}
+
+function refreshCatalog(collectionId?: string, subcollectionId?: string | null) {
+  revalidatePath("/");
+  revalidatePath("/settings/profile");
+  revalidatePath("/collections", "layout");
+  if (collectionId) revalidatePath(`/collections/${collectionId}`);
+  if (collectionId && subcollectionId) revalidatePath(`/collections/${collectionId}/subcollections/${subcollectionId}`);
+}
+
+export async function updateProfileAction(input: unknown): Promise<ActionResult> {
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await updateProfileMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function createCollectionAction(input: unknown): Promise<ActionResult> {
+  const parsed = collectionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createCollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function updateCollectionAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateCollectionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await updateCollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.id);
+  return result;
+}
+
+export async function createCollectionPostAction(input: unknown): Promise<ActionResult> {
+  const parsed = collectionPostSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createCollectionPostMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
+export async function createWishlistPostAction(input: unknown): Promise<ActionResult> {
+  const parsed = wishlistPostSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createWishlistPostMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function recordCollectionShareAction(input: unknown): Promise<ActionResult> {
+  const parsed = collectionShareSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return recordCollectionShareMutation(parsed.data);
+}
+
+export async function deleteCollectionAction(id: unknown): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await deleteCollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function createSubcollectionAction(input: unknown): Promise<ActionResult> {
+  const parsed = subcollectionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createSubcollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
+export async function deleteSubcollectionAction(id: unknown): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await deleteSubcollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function updateSubcollectionAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateSubcollectionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await updateSubcollectionMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.id);
+  return result;
+}
+
+export async function setItemLikeAction(input: unknown): Promise<ActionResult> {
+  const parsed = reactionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await setItemLikeMutation({ targetId: parsed.data.id, active: parsed.data.active });
+  if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.subcollectionId);
+  return result;
+}
+
+export async function setCollectionLikeAction(input: unknown): Promise<ActionResult> {
+  const parsed = reactionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await setCollectionLikeMutation({ targetId: parsed.data.id, active: parsed.data.active });
+  if (result.ok) refreshCatalog(parsed.data.collectionId);
+  return result;
+}
+
+export async function setSubcollectionLikeAction(input: unknown): Promise<ActionResult> {
+  const parsed = reactionSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await setSubcollectionLikeMutation({ targetId: parsed.data.id, active: parsed.data.active });
+  if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.id);
+  return result;
+}
+
+export async function createCatalogCommentAction(input: unknown): Promise<ActionResult> {
+  const parsed = catalogCommentSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createCatalogCommentMutation({
+    collectionId: parsed.data.targetCollectionId,
+    itemId: parsed.data.itemId,
+    subcollectionId: parsed.data.subcollectionId,
+    body: parsed.data.body,
+  });
+  if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.subcollectionId);
+  return result;
+}
+
+export async function recordCatalogViewAction(input: unknown): Promise<ActionResult> {
+  const parsed = catalogViewSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return recordCatalogViewMutation(parsed.data);
+}
+
+export async function createItemAction(input: unknown): Promise<ActionResult> {
+  const parsed = createItemSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await createItemMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function updateItemAction(input: unknown): Promise<ActionResult> {
+  const parsed = itemSchema.required({ id: true }).safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await updateItemMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
+
+export async function appendItemMediaAction(input: unknown): Promise<ActionResult> {
+  const parsed = appendItemMediaSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await appendItemMediaMutation(parsed.data);
+  if (result.ok) refreshCatalog(parsed.data.collectionId, parsed.data.subcollectionId);
+  return result;
+}
+
+export async function deleteItemAction(id: unknown): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(id);
+  if (!parsed.success) return invalid(parsed.error);
+  const result = await deleteItemMutation(parsed.data);
+  if (result.ok) refreshCatalog();
+  return result;
+}
