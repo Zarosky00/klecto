@@ -753,20 +753,19 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     window.requestAnimationFrame(() => viewerRef.current?.scrollTo({ top: 0, behavior: "auto" }));
   };
   const exploreSubcollection = (section: DiscoveryFeedEntryDTO["catalogPreview"]["subcollections"][number]) => {
-    const sectionImages = [
-      section.coverUrl,
-      ...entry.catalogPreview.items
-        .filter((item) => item.subcollectionId === section.id)
-        .flatMap((item) => item.imageUrls?.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : []),
-    ].filter((image): image is string => Boolean(image));
-    const uniqueImages = [...new Set(sectionImages)];
-    if (!uniqueImages.length) return;
+    const coverImage = section.coverUrl
+      ?? entry.catalogPreview.items
+        .find((item) => item.subcollectionId === section.id && (item.imageUrls?.length || item.imageUrl))
+        ?.imageUrls?.[0]
+      ?? entry.catalogPreview.items.find((item) => item.subcollectionId === section.id)?.imageUrl
+      ?? null;
+    if (!coverImage) return;
     exploreDiscovery({
       id: `section-${section.id}`,
       title: section.name,
       eyebrow: `${section.kind} · ${section.itemCount} ${section.itemCount === 1 ? "object" : "objects"}`,
-      imageUrl: uniqueImages[0],
-      imageUrls: uniqueImages,
+      imageUrl: coverImage,
+      imageUrls: [coverImage],
       description: section.description,
       targetKind: "subcollection",
       targetId: section.id,
