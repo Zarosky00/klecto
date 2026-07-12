@@ -411,14 +411,10 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
   const canFollow = !viewer || viewer.id !== entry.author.id;
   const sourceCard = (
     <>
-      <a href={entry.sourceHref} className={`collection-label ${styles.collectionLabel}`}>
-        <span><KindIcon kind={entry.targetKind} /></span><span>{entrySource(entry)}</span><b>{kindLabels[entry.targetKind]}</b><ChevronRight size={14} />
-      </a>
       <h2>{entry.title}</h2>
       {entry.description && <p className="post-copy">{entry.description}</p>}
       <button type="button" className={`media-frame ${styles.media}`} onClick={onMedia} aria-label={`View ${entry.title} photos`}>
         {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span className={styles.mediaFallback}><ImageIcon size={28} /></span>}
-        <span className={`mood-tag ${styles.kindTag}`}><KindIcon kind={entry.targetKind} size={13} />{kindLabels[entry.targetKind]}</span>
         {entry.imageCount > 1 && <span className="image-count">{entry.imageCount} photos</span>}
       </button>
       <div className="metadata-row">
@@ -756,6 +752,35 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
     window.requestAnimationFrame(() => viewerRef.current?.scrollTo({ top: 0, behavior: "auto" }));
   };
+  const exploreSubcollection = (section: DiscoveryFeedEntryDTO["catalogPreview"]["subcollections"][number]) => {
+    const sectionImages = [
+      section.coverUrl,
+      ...entry.catalogPreview.items
+        .filter((item) => item.subcollectionId === section.id)
+        .flatMap((item) => item.imageUrls?.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : []),
+    ].filter((image): image is string => Boolean(image));
+    const uniqueImages = [...new Set(sectionImages)];
+    if (!uniqueImages.length) return;
+    exploreDiscovery({
+      id: `section-${section.id}`,
+      title: section.name,
+      eyebrow: `${section.kind} · ${section.itemCount} ${section.itemCount === 1 ? "object" : "objects"}`,
+      imageUrl: uniqueImages[0],
+      imageUrls: uniqueImages,
+      description: section.description,
+      targetKind: "subcollection",
+      targetId: section.id,
+      likeCount: section.likeCount,
+      likedByViewer: section.likedByViewer,
+      commentCount: section.commentCount,
+      wishlistCount: section.wishlistCount,
+      viewCount: section.viewCount,
+      comments: section.comments,
+      subcollectionId: section.id,
+      subcollectionSlug: section.slug,
+      subcollectionName: section.name,
+    });
+  };
   const activeSubcollectionSlug = selectedDiscovery?.subcollectionSlug ?? entry.subcollection?.slug ?? null;
   const activeSubcollectionName = selectedDiscovery?.subcollectionName
     ?? (selectedDiscovery && !selectedDiscovery.current ? selectedDiscovery.eyebrow : null)
@@ -766,9 +791,6 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     ? relatedDiscoveries.filter((discovery) => discovery.subcollectionId === activeSubcollectionId)
     : relatedDiscoveries;
   const isDemoCatalogue = entry.sourceHref.startsWith("/demo/collections/");
-  const subcollectionHref = (slug: string) => isDemoCatalogue
-    ? `/demo/collections/${encodeURIComponent(entry.collection.slug)}/subcollections/${encodeURIComponent(slug)}`
-    : `${entry.sourceHref}${entry.sourceHref.includes("?") ? "&" : "?"}subcollection=${encodeURIComponent(slug)}`;
   const catalogueHref = activeSubcollectionSlug
     ? isDemoCatalogue
       ? `/demo/collections/${encodeURIComponent(entry.collection.slug)}/subcollections/${encodeURIComponent(activeSubcollectionSlug)}`
@@ -820,13 +842,13 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
               </motion.button>)}
             </div>
             <section className={styles.mediaAccountShelves} aria-label={`${entry.sourceAuthor.displayName}'s other collections`}>
-              <div className={styles.mediaAccountShelvesHead}><div><span>FROM {entry.sourceAuthor.displayName.toUpperCase()}’S COLLECTION</span><strong>{entry.sourceAuthor.displayName} also keeps these shelves</strong></div><small>Swipe to explore</small></div>
+              <div className={styles.mediaAccountShelvesHead}><div><span>MORE FROM THIS COLLECTOR</span><strong>More shelves to explore</strong></div><small>Swipe to explore</small></div>
               <div className={styles.mediaAccountShelvesTrack}>
-                {entry.catalogPreview.subcollections.map((section) => <a key={section.id} href={subcollectionHref(section.slug)} className={styles.mediaAccountShelfCard}>
+                {entry.catalogPreview.subcollections.map((section) => <button key={section.id} type="button" onClick={() => exploreSubcollection(section)} className={styles.mediaAccountShelfCard}>
                   <div>{section.coverUrl ? <img src={section.coverUrl} alt="" /> : <Layers3 size={24} />}</div>
                   <span><small>{section.kind} · {section.itemCount} {section.itemCount === 1 ? "object" : "objects"}</small><strong>{section.name}</strong><em>{section.description ?? "Open this shelf to explore the full collection."}</em></span>
                   <ChevronRight size={16} />
-                </a>)}
+                </button>)}
               </div>
             </section>
           </motion.aside>}
