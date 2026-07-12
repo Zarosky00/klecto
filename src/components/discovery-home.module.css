@@ -97,6 +97,16 @@
 .mediaCreatorBar { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #efefe9; padding: 12px 18px 9px; }
 .mediaWishlistButton { display: inline-flex; min-height: 38px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 999px; background: #22221f; color: #fffefa; padding: 0 16px; font-size: 11px; font-weight: 800; transition: background .2s ease, transform .2s ease; }
 .mediaWishlistButton:hover { background: #3b3b36; transform: translateY(-1px); }
+.mediaDetails { border-top: 1px solid #efefe9; background: #fffefa; }
+.mediaDetailsToggle { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 15px; border: 0; background: transparent; color: #31332e; padding: 12px 18px 11px; text-align: left; }
+.mediaDetailsToggle > span { display: grid; min-width: 0; gap: 4px; }
+.mediaDetailsToggle small { color: #879078; font-size: 8px; font-weight: 850; letter-spacing: .13em; }
+.mediaDetailsToggle strong { display: -webkit-box; overflow: hidden; color: #545950; font-size: 11px; font-weight: 550; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mediaDetailsToggle > svg { flex: 0 0 auto; color: #667552; }
+.mediaDetailsExpanded { overflow: hidden; padding: 0 18px 14px; }
+.mediaDetailsExpanded p { margin: 0; color: #62675e; font-size: 12px; line-height: 1.55; }
+.mediaDetailTags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.mediaDetailTags span { border: 1px solid #d8e3c0; border-radius: 999px; background: #f3f7e9; color: #637542; padding: 5px 8px; font-size: 9px; font-weight: 750; }
 .mediaEngagement { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px 10px; }
 .mediaEngagement > div { display: flex; align-items: center; gap: 2px; }
 .mediaEngagement button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 999px; background: transparent; color: #5f5f5a; padding: 0 10px; font-size: 10px; font-weight: 750; transition: background .2s ease, color .2s ease, transform .2s ease; }
@@ -125,6 +135,7 @@
 .mediaRelatedCard strong { font-size: 11px; line-height: 1.25; }
 .sheetBackdrop.sheetBackdropOverMedia { z-index: 11050 !important; isolation: isolate; background: rgb(20 20 18 / 46%); backdrop-filter: blur(12px); }
 .commentDrawerOverMedia { width: min(620px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
+.wishlistDrawerOverMedia { width: min(570px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
 .postBackdrop { z-index: 1000; align-items: stretch; padding: 0; background: #f7f6f0; backdrop-filter: none; }
 .postDetail { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100dvh; max-height: none; overflow: hidden; border: 0; border-radius: 0; background: #fffefa; box-shadow: none; color: #283120; }
 .postDetail > header { border-bottom: 1px solid #edf0e5; }

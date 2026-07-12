@@ -50,6 +50,17 @@ type ViewerDiscovery = {
   title: string;
   eyebrow: string;
   imageUrl: string;
+  imageUrls?: string[];
+  description?: string | null;
+  tags?: string[];
+  targetKind?: DiscoveryFeedEntryDTO["targetKind"];
+  targetId?: string;
+  likeCount?: number;
+  likedByViewer?: boolean;
+  commentCount?: number;
+  wishlistCount?: number;
+  viewCount?: number;
+  comments?: DiscoveryFeedEntryDTO["comments"];
   current?: boolean;
   subcollectionId?: string | null;
   subcollectionSlug?: string | null;
@@ -116,6 +127,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
   const [commentTarget, setCommentTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [commentOverMedia, setCommentOverMedia] = useState(false);
   const [wishlistTarget, setWishlistTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
+  const [wishlistOverMedia, setWishlistOverMedia] = useState(false);
   const [mediaTarget, setMediaTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
   const [postTarget, setPostTarget] = useState<DiscoveryFeedEntryDTO | null>(() => feed.entries.find((entry) => entry.id === initialPostId) ?? null);
   const [wishlisterTarget, setWishlisterTarget] = useState<DiscoveryFeedEntryDTO | null>(null);
@@ -251,6 +263,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     if (!target) return;
     if (feed.isDemoFallback) {
       setWishlistTarget(null);
+      setWishlistOverMedia(false);
       return showNotice(quote.trim() ? "Your quoted wishlist is ready in this demo." : "Added to your demo wishlist.");
     }
     startTransition(() => {
@@ -262,6 +275,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
         });
         if (!result.ok) return showNotice(result.error ?? "Could not add that wishlist.");
         setWishlistTarget(null);
+        setWishlistOverMedia(false);
         showNotice("Wishlisted. Your note is now part of the feed.");
         router.refresh();
       })();
@@ -276,20 +290,21 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     targetId: item.id,
     title: item.title,
     description: item.description,
-    imageUrls: item.imageUrl ? [item.imageUrl] : [],
-    imageCount: item.imageUrl ? 1 : 0,
-    viewCount: 0,
+    tags: item.tags ?? [],
+    imageUrls: item.imageUrls?.length ? item.imageUrls : item.imageUrl ? [item.imageUrl] : [],
+    imageCount: item.imageUrls?.length ?? (item.imageUrl ? 1 : 0),
+    viewCount: item.viewCount ?? 0,
     subcollection: (catalogTarget ?? mediaTarget ?? postTarget)?.subcollection ?? (item.subcollectionId ? {
       id: item.subcollectionId,
       slug: item.subcollectionId,
       name: item.subcollectionName ?? "Section",
       kind: "custom",
     } : null),
-    likeCount: 0,
-    likedByViewer: false,
-    commentCount: 0,
-    comments: [],
-    wishlistCount: 0,
+    likeCount: item.likeCount ?? 0,
+    likedByViewer: item.likedByViewer ?? false,
+    commentCount: item.commentCount ?? 0,
+    comments: item.comments ?? [],
+    wishlistCount: item.wishlistCount ?? 0,
     wishlisters: [],
     likers: [],
   });
@@ -309,6 +324,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
     closePost();
     setCatalogTarget(null);
     setMediaTarget(null);
+    setWishlistOverMedia(false);
     setWishlistTarget(previewItemEntry(item));
   };
 
@@ -345,7 +361,7 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
         <AnimatePresence initial={false} mode="popLayout">
           {visibleEntries.map((entry, index) => (
             <DiscoveryCard key={entry.id} entry={entry} index={index} demo={feed.isDemoFallback} viewer={viewer} pending={isPending}
-              onLike={() => toggleLike(entry)} onComment={() => { setCommentOverMedia(false); setCommentTarget(entry); }} onWishlist={() => setWishlistTarget(entry)}
+              onLike={() => toggleLike(entry)} onComment={() => { setCommentOverMedia(false); setCommentTarget(entry); }} onWishlist={() => { setWishlistOverMedia(false); setWishlistTarget(entry); }}
               onMedia={() => setMediaTarget(entry)} onOpenPost={() => openPost(entry)} onWishlisters={() => setWishlisterTarget(entry)} onMore={() => setProfileActionTarget(entry)} />
           ))}
         </AnimatePresence>
@@ -354,16 +370,16 @@ export function DiscoveryHome({ feed, viewer, initialPostId }: { feed: Discovery
       {visibleEntries.length === 0 && <div className={styles.empty}><Layers3 size={22} /><strong>No matching shelves yet.</strong><span>Try another part of the catalogue.</span></div>}
 
       <AnimatePresence>
-        {wishlistTarget && <WishlistComposer key="wishlist-composer" entry={wishlistTarget} viewer={viewer} pending={isPending} onClose={() => setWishlistTarget(null)} onSubmit={createWishlist} />}
+        {wishlistTarget && <WishlistComposer key={`wishlist-composer-${wishlistOverMedia ? "media" : "feed"}`} entry={wishlistTarget} viewer={viewer} pending={isPending} overMedia={wishlistOverMedia} onClose={() => { setWishlistTarget(null); setWishlistOverMedia(false); }} onSubmit={createWishlist} />}
         {postTarget && <PostDetail key="post-detail" entry={postTarget} demo={feed.isDemoFallback} viewer={viewer} pending={isPending} onClose={closePost}
-          onLike={() => toggleLike(postTarget)} onWishlist={() => setWishlistTarget(postTarget)}
+          onLike={() => toggleLike(postTarget)} onWishlist={() => { setWishlistOverMedia(false); setWishlistTarget(postTarget); }}
           onMedia={() => setMediaTarget(postTarget)}
           onEngagement={(kind) => setEngagementTarget({ entry: postTarget, kind })}
           onSubmitComment={(body, parentId) => addCommentForTarget(postTarget, body, false, parentId)} />}
         {mediaTarget && <MediaViewer key="media-viewer" entry={mediaTarget} onClose={() => setMediaTarget(null)}
-          onLike={() => toggleLike(mediaTarget)}
-          onComment={() => { setCommentOverMedia(true); setCommentTarget(mediaTarget); }}
-          onWishlist={() => { setMediaTarget(null); setWishlistTarget(mediaTarget); }} />}
+          onLike={(target) => toggleLike(target)}
+          onComment={(target) => { setCommentOverMedia(true); setCommentTarget(target); }}
+          onWishlist={(target) => { setWishlistOverMedia(true); setWishlistTarget(target); }} />}
         {catalogTarget && <CatalogExplorerSheet key="catalog-explorer" entry={catalogTarget} demo={feed.isDemoFallback} onClose={() => setCatalogTarget(null)}
           onItemMedia={openPreviewMedia} onItemComment={openPreviewComment} onItemWishlist={openPreviewWishlist} />}
         {wishlisterTarget && <EngagementSheet key="wishlist-engagement" entry={wishlisterTarget} kind="wishlist" demo={feed.isDemoFallback} onClose={() => setWishlisterTarget(null)} />}
@@ -538,14 +554,16 @@ function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry
   );
 }
 
-function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: () => void; onComment: () => void; onWishlist: () => void }) {
+function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: (target: DiscoveryFeedEntryDTO) => void; onComment: (target: DiscoveryFeedEntryDTO) => void; onWishlist: (target: DiscoveryFeedEntryDTO) => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [saved, setSaved] = useState(false);
-  const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
+  const images = useMemo(() => selectedDiscovery?.imageUrls?.length ? selectedDiscovery.imageUrls : selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls, [entry.imageUrls, selectedDiscovery]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [immersive, setImmersive] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [localReaction, setLocalReaction] = useState<{ key: string; liked: boolean; count: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<HTMLElement | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -554,6 +572,38 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   const didPinch = useRef(false);
   const lastImageTap = useRef(0);
   const relatedBeforeImmersive = useRef(false);
+  const activeDiscoveryKey = selectedDiscovery?.id ?? entry.id;
+  const activeTarget = useMemo<DiscoveryFeedEntryDTO>(() => {
+    if (!selectedDiscovery || selectedDiscovery.current) return entry;
+    return {
+      ...entry,
+      id: `${entry.id}:preview:${selectedDiscovery.targetId ?? selectedDiscovery.id}`,
+      targetKind: selectedDiscovery.targetKind ?? entry.targetKind,
+      targetId: selectedDiscovery.targetId ?? entry.targetId,
+      title: selectedDiscovery.title,
+      description: selectedDiscovery.description ?? null,
+      imageUrls: images,
+      imageCount: images.length,
+      subcollection: selectedDiscovery.subcollectionId && selectedDiscovery.subcollectionName
+        ? { id: selectedDiscovery.subcollectionId, slug: selectedDiscovery.subcollectionSlug ?? selectedDiscovery.subcollectionId, name: selectedDiscovery.subcollectionName, kind: entry.subcollection?.kind ?? "custom" }
+        : entry.subcollection,
+      likeCount: selectedDiscovery.likeCount ?? 0,
+      likedByViewer: selectedDiscovery.likedByViewer ?? false,
+      commentCount: selectedDiscovery.commentCount ?? 0,
+      comments: selectedDiscovery.comments ?? [],
+      wishlistCount: selectedDiscovery.wishlistCount ?? 0,
+      viewCount: selectedDiscovery.viewCount ?? 0,
+    };
+  }, [entry, images, selectedDiscovery]);
+  const displayDescription = selectedDiscovery?.description ?? entry.description;
+  const displayTags = selectedDiscovery?.tags ?? entry.tags ?? [];
+  const reactionLiked = localReaction?.key === activeDiscoveryKey ? localReaction.liked : (selectedDiscovery?.likedByViewer ?? entry.likedByViewer);
+  const reactionCount = localReaction?.key === activeDiscoveryKey ? localReaction.count : (selectedDiscovery?.likeCount ?? entry.likeCount);
+  const toggleActiveLike = () => {
+    const nextLiked = !reactionLiked;
+    setLocalReaction({ key: activeDiscoveryKey, liked: nextLiked, count: Math.max(0, reactionCount + (nextLiked ? 1 : -1)) });
+    onLike(activeTarget);
+  };
   const relatedDiscoveries = useMemo(() => {
     const subcollectionsById = new Map(entry.catalogPreview.subcollections.map((section) => [section.id, section]));
     const currentImage = entry.imageUrls[0];
@@ -562,6 +612,16 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
       title: entry.title,
       eyebrow: "Currently viewing",
       imageUrl: currentImage,
+      imageUrls: entry.imageUrls,
+      description: entry.description,
+      targetKind: entry.targetKind,
+      targetId: entry.targetId,
+      likeCount: entry.likeCount,
+      likedByViewer: entry.likedByViewer,
+      commentCount: entry.commentCount,
+      wishlistCount: entry.wishlistCount,
+      viewCount: entry.viewCount,
+      comments: entry.comments,
       current: true,
       subcollectionId: entry.subcollection?.id ?? null,
       subcollectionSlug: entry.subcollection?.slug ?? null,
@@ -574,6 +634,15 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
         title: section.name,
         eyebrow: `${section.itemCount} ${section.itemCount === 1 ? "object" : "objects"}`,
         imageUrl: section.coverUrl!,
+        description: section.description,
+        targetKind: "subcollection",
+        targetId: section.id,
+        likeCount: section.likeCount,
+        likedByViewer: section.likedByViewer,
+        commentCount: section.commentCount,
+        wishlistCount: section.wishlistCount,
+        viewCount: section.viewCount,
+        comments: section.comments,
         subcollectionId: section.id,
         subcollectionSlug: section.slug,
         subcollectionName: section.name,
@@ -587,6 +656,17 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
           title: item.title,
           eyebrow: item.subcollectionName ?? entry.collection.name,
           imageUrl: item.imageUrl!,
+          imageUrls: item.imageUrls?.length ? item.imageUrls : [item.imageUrl!],
+          description: item.description,
+          tags: item.tags ?? [],
+          targetKind: "item",
+          targetId: item.id,
+          likeCount: item.likeCount,
+          likedByViewer: item.likedByViewer,
+          commentCount: item.commentCount,
+          wishlistCount: item.wishlistCount,
+          viewCount: item.viewCount,
+          comments: item.comments,
           subcollectionId: item.subcollectionId,
           subcollectionSlug: section?.slug ?? null,
           subcollectionName: item.subcollectionName,
@@ -713,9 +793,16 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
         </div>
         <footer>
           <div className={styles.mediaFooterMain}><div className={styles.mediaPosition}><span>{images.length ? `${activeIndex + 1} / ${images.length}` : "0 photos"}</span>{images.length > 1 && <div className={styles.mediaDots}>{images.map((_, index) => <button key={index} type="button" className={index === activeIndex ? styles.activeDot : undefined} onClick={() => goTo(index)} aria-label={`View photo ${index + 1}`} />)}</div>}</div><motion.button type="button" className={styles.mediaDiscoverToggle} onClick={() => setRelatedOpen((open) => !open)} whileTap={{ scale: 0.86 }} animate={{ y: relatedOpen ? 1 : [0, 2, 0] }} transition={relatedOpen ? { type: "spring", stiffness: 420, damping: 22 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }} aria-expanded={relatedOpen} aria-controls="media-related-discoveries" aria-label={relatedOpen ? "Hide related catalogue images" : "Show related catalogue images"}>{relatedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</motion.button></div>
-          <div className={styles.mediaCreatorBar}><a href={`/u/${encodeURIComponent(entry.author.username)}`} className={styles.mediaViewerAuthor}><span className={styles.mediaViewerAvatar}>{entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : entry.author.displayName.slice(0, 1)}</span><span><strong>{entry.author.displayName}</strong><small>@{entry.author.username}</small></span></a><button type="button" className={styles.mediaWishlistButton} onClick={onWishlist}><Repeat2 size={15} /> Wishlist</button></div>
+          <div className={styles.mediaCreatorBar}><a href={`/u/${encodeURIComponent(entry.author.username)}`} className={styles.mediaViewerAuthor}><span className={styles.mediaViewerAvatar}>{entry.author.avatarUrl ? <img src={entry.author.avatarUrl} alt="" /> : entry.author.displayName.slice(0, 1)}</span><span><strong>{entry.author.displayName}</strong><small>@{entry.author.username}</small></span></a><button type="button" className={styles.mediaWishlistButton} onClick={() => onWishlist(activeTarget)}><Repeat2 size={15} /> Wishlist {activeTarget.wishlistCount ? activeTarget.wishlistCount : ""}</button></div>
+          {(displayDescription || displayTags.length > 0) && <section className={styles.mediaDetails} aria-label="Image details">
+            <button type="button" className={styles.mediaDetailsToggle} onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen}>
+              <span><small>ABOUT THIS {selectedDiscovery?.targetKind === "subcollection" ? "SECTION" : "OBJECT"}</small><strong>{displayDescription ? (detailsOpen || displayDescription.length <= 120 ? displayDescription : `${displayDescription.slice(0, 120).trimEnd()}…`) : "View the details and tags"}</strong></span>
+              {detailsOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            </button>
+            <AnimatePresence initial={false}>{detailsOpen && <motion.div className={styles.mediaDetailsExpanded} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}><p>{displayDescription || "No description added yet."}</p>{displayTags.length > 0 && <div className={styles.mediaDetailTags}>{displayTags.map((tag) => <span key={tag}>#{tag}</span>)}</div>}</motion.div>}</AnimatePresence>
+          </section>}
           <div className={styles.mediaEngagement} aria-label="Photo engagement">
-            <div><button type="button" className={entry.likedByViewer ? styles.mediaEngagementActive : undefined} onClick={onLike} aria-label="Like this photo"><Heart size={18} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button><button type="button" onClick={onComment} aria-label="Open comments"><MessageCircle size={18} /><span>{entry.commentCount}</span></button></div>
+            <div><button type="button" className={reactionLiked ? styles.mediaEngagementActive : undefined} onClick={toggleActiveLike} aria-label="Like this photo"><Heart size={18} fill={reactionLiked ? "currentColor" : "none"} /><span>{reactionCount}</span></button><button type="button" onClick={() => onComment(activeTarget)} aria-label="Open comments"><MessageCircle size={18} /><span>{activeTarget.commentCount}</span></button></div>
             <div><button type="button" className={saved ? styles.mediaEngagementActive : undefined} onClick={() => setSaved((current) => !current)}><Bookmark size={18} fill={saved ? "currentColor" : "none"} /><span>{saved ? "Saved" : "Save"}</span></button><button type="button" onClick={sharePhoto} aria-label="Share this photo"><Share2 size={18} /></button></div>
           </div>
         </footer>
@@ -995,7 +1082,7 @@ function CommentActionSheet({ comment, saved, onClose, onReply, onSave }: { comm
   );
 }
 
-function WishlistComposer({ entry, viewer, pending, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; viewer: ViewerDTO | null; pending: boolean; onClose: () => void; onSubmit: (quote: string) => void }) {
+function WishlistComposer({ entry, viewer, pending, overMedia, onClose, onSubmit }: { entry: DiscoveryFeedEntryDTO; viewer: ViewerDTO | null; pending: boolean; overMedia: boolean; onClose: () => void; onSubmit: (quote: string) => void }) {
   const [quote, setQuote] = useState("");
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
@@ -1008,8 +1095,8 @@ function WishlistComposer({ entry, viewer, pending, onClose, onSubmit }: { entry
     };
   }, []);
   return createPortal(
-    <motion.div className={styles.sheetBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section className={styles.sheet} initial={{ y: 40, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0.7 }} onMouseDown={(event) => event.stopPropagation()}>
+    <motion.div className={`${styles.sheetBackdrop} ${overMedia ? styles.sheetBackdropOverMedia : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
+      <motion.section className={`${styles.sheet} ${overMedia ? styles.wishlistDrawerOverMedia : ""}`} initial={overMedia ? { y: 56, opacity: 0.65 } : { y: 40, opacity: 0.7 }} animate={{ y: 0, opacity: 1 }} exit={overMedia ? { y: 42, opacity: 0.6 } : { y: 40, opacity: 0.7 }} transition={{ type: "spring", stiffness: 340, damping: 31 }} onMouseDown={(event) => event.stopPropagation()}>
         <div className={styles.sheetHandle} />
         <header><div><span>ADD TO YOUR WISHLIST</span><h3>{entry.title}</h3></div><button type="button" onClick={onClose} aria-label="Close wishlist"><X size={19} /></button></header>
         <div className={styles.quotedTarget}><Repeat2 size={17} /><div><b>{kindLabels[entry.targetKind]} / {entrySource(entry)}</b><span>{entry.description ?? "Keep this one in sight."}</span></div></div>

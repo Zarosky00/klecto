@@ -246,8 +246,15 @@ export type DiscoveryPreviewSubcollectionDTO = {
   slug: string;
   name: string;
   kind: "brand" | "series" | "era" | "custom";
+  description?: string | null;
   coverUrl: string | null;
   itemCount: number;
+  likeCount?: number;
+  likedByViewer?: boolean;
+  commentCount?: number;
+  viewCount?: number;
+  wishlistCount?: number;
+  comments?: DiscoveryCommentDTO[];
 };
 
 export type DiscoveryPreviewItemDTO = {
@@ -255,8 +262,17 @@ export type DiscoveryPreviewItemDTO = {
   title: string;
   description: string | null;
   imageUrl: string | null;
+  imageUrls?: string[];
+  tags?: string[];
+  mood?: ItemMood | null;
   subcollectionId: string | null;
   subcollectionName: string | null;
+  likeCount?: number;
+  likedByViewer?: boolean;
+  commentCount?: number;
+  viewCount?: number;
+  wishlistCount?: number;
+  comments?: DiscoveryCommentDTO[];
 };
 
 export type DiscoveryCatalogPreviewDTO = {
@@ -279,6 +295,7 @@ export type DiscoveryFeedEntryDTO = {
   title: string;
   description: string | null;
   quoteText: string | null;
+  tags?: string[];
   imageUrls: string[];
   imageCount: number;
   mood: ItemMood | null;
