@@ -664,9 +664,10 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     setSelectedDiscovery(discovery.current ? null : discovery);
     setActiveIndex(0);
     setZoom(1);
-    setRelatedOpen(false);
-    setImmersive(true);
+    setImmersive(false);
+    setRelatedOpen(true);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+    window.setTimeout(() => viewerRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 24);
   };
   const activeSubcollectionSlug = selectedDiscovery?.subcollectionSlug ?? entry.subcollection?.slug ?? null;
   const activeSubcollectionName = selectedDiscovery?.subcollectionName
