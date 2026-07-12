@@ -540,7 +540,6 @@ function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry
 
 function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: () => void; onComment: () => void; onWishlist: () => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
-  const [previewDiscovery, setPreviewDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
@@ -614,8 +613,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (previewDiscovery) setPreviewDiscovery(null);
-        else onClose();
+        onClose();
       }
       if (event.key === "ArrowLeft") goTo(activeIndex - 1);
       if (event.key === "ArrowRight") goTo(activeIndex + 1);
@@ -623,7 +621,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   // activeIndex is intentionally part of the shortcut state.
-  }, [activeIndex, goTo, onClose, previewDiscovery]);
+  }, [activeIndex, goTo, onClose]);
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
@@ -659,14 +657,15 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     const now = Date.now();
     if (now - lastImageTap.current < 320) return;
     lastImageTap.current = now;
+    setRelatedOpen(false);
     setImmersive((active) => !active);
   };
   const exploreDiscovery = (discovery: ViewerDiscovery) => {
     setSelectedDiscovery(discovery.current ? null : discovery);
     setActiveIndex(0);
     setZoom(1);
-    setImmersive(false);
-    setPreviewDiscovery(discovery);
+    setRelatedOpen(false);
+    setImmersive(true);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
   };
   const activeSubcollectionSlug = selectedDiscovery?.subcollectionSlug ?? entry.subcollection?.slug ?? null;
@@ -724,15 +723,6 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
           </motion.aside>}
         </AnimatePresence>
       </motion.section>
-      <AnimatePresence>
-        {previewDiscovery && <motion.div className={styles.mediaPinPreviewBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) setPreviewDiscovery(null); }}>
-          <motion.article className={styles.mediaPinPreview} initial={{ opacity: 0, y: 42, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30, scale: 0.96 }} transition={{ type: "spring", stiffness: 330, damping: 30 }} onMouseDown={(event) => event.stopPropagation()}>
-            <button type="button" className={styles.mediaPinPreviewClose} onClick={() => setPreviewDiscovery(null)} aria-label="Close related image preview"><X size={19} /></button>
-            <img src={previewDiscovery.imageUrl} alt={previewDiscovery.title} />
-            <div><span>{previewDiscovery.eyebrow}</span><h4>{previewDiscovery.title}</h4></div>
-          </motion.article>
-        </motion.div>}
-      </AnimatePresence>
     </motion.div>,
     document.body,
   );
