@@ -540,6 +540,7 @@ function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry
 
 function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: () => void; onComment: () => void; onWishlist: () => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
+  const [previewDiscovery, setPreviewDiscovery] = useState<ViewerDiscovery | null>(null);
   const [relatedOpen, setRelatedOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const images = selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls;
@@ -614,7 +615,8 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        if (previewDiscovery) setPreviewDiscovery(null);
+        else onClose();
       }
       if (event.key === "ArrowLeft") goTo(activeIndex - 1);
       if (event.key === "ArrowRight") goTo(activeIndex + 1);
@@ -622,7 +624,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   // activeIndex is intentionally part of the shortcut state.
-  }, [activeIndex, goTo, onClose]);
+  }, [activeIndex, goTo, onClose, previewDiscovery]);
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
@@ -673,8 +675,8 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     setZoom(1);
     setImmersive(false);
     setRelatedOpen(true);
+    setPreviewDiscovery(discovery);
     scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
-    window.setTimeout(() => viewerRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 24);
   };
   const activeSubcollectionSlug = selectedDiscovery?.subcollectionSlug ?? entry.subcollection?.slug ?? null;
   const activeSubcollectionName = selectedDiscovery?.subcollectionName
@@ -724,11 +726,20 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
             <div className={styles.mediaRelatedHead}><div><span>{relatedScopeLabel}</span><strong>{activeSubcollectionName}</strong></div><small>{visibleRelatedDiscoveries.length} {visibleRelatedDiscoveries.length === 1 ? "object" : "objects"}</small></div>
             <div className={styles.mediaRelatedMasonry}>
               {visibleRelatedDiscoveries.map((discovery, index) => <motion.button type="button" key={discovery.id} className={`${styles.mediaRelatedCard} ${(selectedDiscovery?.id ?? `${entry.id}-current`) === discovery.id ? styles.mediaRelatedCardActive : ""}`} onClick={() => exploreDiscovery(discovery)} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.035, 0.22), duration: 0.28 }} whileTap={{ scale: 0.97 }} aria-label={`Preview ${discovery.title}`}>
-                <img src={discovery.imageUrl} alt="" />
+                <motion.img layoutId={`discovery-image-${discovery.id}`} src={discovery.imageUrl} alt="" />
                 <span><small>{discovery.eyebrow}</small><strong>{discovery.title}</strong></span>
               </motion.button>)}
             </div>
           </motion.aside>}
+        </AnimatePresence>
+        <AnimatePresence>
+          {previewDiscovery && <motion.div className={styles.mediaPinPreviewBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) setPreviewDiscovery(null); }}>
+            <motion.article className={styles.mediaPinPreview} initial={{ opacity: 0, y: 34, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.94 }} transition={{ type: "spring", stiffness: 330, damping: 29 }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-label={`${previewDiscovery.title} preview`}>
+              <button type="button" className={styles.mediaPinPreviewClose} onClick={() => setPreviewDiscovery(null)} aria-label="Close image preview"><X size={19} /></button>
+              <motion.img layoutId={`discovery-image-${previewDiscovery.id}`} src={previewDiscovery.imageUrl} alt={previewDiscovery.title} />
+              <div><span>{previewDiscovery.eyebrow}</span><h4>{previewDiscovery.title}</h4><small>Tap the image above to keep exploring this catalogue.</small></div>
+            </motion.article>
+          </motion.div>}
         </AnimatePresence>
       </motion.section>
     </motion.div>,
