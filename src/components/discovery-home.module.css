@@ -123,15 +123,6 @@
 .mediaRelatedCard > span { display: grid; gap: 3px; padding: 8px 5px 3px; }
 .mediaRelatedCard small { overflow: hidden; color: #8a8a83; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .mediaRelatedCard strong { font-size: 11px; line-height: 1.25; }
-.mediaPinPreviewBackdrop { position: fixed; z-index: 10030; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(17 18 15 / 48%); backdrop-filter: blur(15px) saturate(.86); }
-.mediaPinPreview { position: relative; isolation: isolate; width: min(520px, calc(100vw - 36px)); overflow: hidden; border: 1px solid rgb(255 255 255 / 70%); border-radius: 30px; background: #fffefa; box-shadow: 0 34px 100px rgb(15 15 13 / 38%), 0 0 0 1px rgb(20 20 18 / 6%); }
-.mediaPinPreview > img { display: block; width: 100%; max-height: min(68dvh, 620px); border-radius: 29px 29px 0 0; object-fit: contain; background: #eeeeea; }
-.mediaPinPreview > div { display: grid; gap: 5px; padding: 15px 19px 18px; background: #fffefa; }
-.mediaPinPreview > div > span { color: #7b876d; font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
-.mediaPinPreview h4 { margin: 0; color: #20201d; font-size: 21px; letter-spacing: -.025em; }
-.mediaPinPreview > div > small { color: #85857f; font-size: 10px; }
-.mediaPinPreviewClose { position: absolute; z-index: 2; top: 12px; right: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 50%; background: rgb(255 255 255 / 92%); box-shadow: 0 5px 18px rgb(0 0 0 / 16%); color: #20201d; }
-.mediaPinPreviewClose:hover { background: #fff; transform: scale(1.04); }
 .sheetBackdrop.sheetBackdropOverMedia { z-index: 11050 !important; isolation: isolate; background: rgb(20 20 18 / 46%); backdrop-filter: blur(12px); }
 .commentDrawerOverMedia { width: min(620px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
 .postBackdrop { z-index: 1000; align-items: stretch; padding: 0; background: #f7f6f0; backdrop-filter: none; }
@@ -232,9 +223,6 @@
   .mediaRelatedCard { margin-bottom: 10px; }
   .mediaRelatedCard img { border-radius: 16px; }
   .mediaRelatedCard > span { padding: 7px 4px 2px; }
-  .mediaPinPreviewBackdrop { align-items: end; padding: 0; }
-  .mediaPinPreview { width: 100%; max-height: calc(100dvh - 10px); border-radius: 26px 26px 0 0; }
-  .mediaPinPreview > img { max-height: 68dvh; border-radius: 25px 25px 0 0; }
   .commentDrawerOverMedia { min-height: min(620px, calc(100dvh - 14px)); max-height: calc(100dvh - 14px); border-radius: 25px 25px 0 0; }
 }
 @media (max-width: 780px) {
