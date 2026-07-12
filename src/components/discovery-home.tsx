@@ -425,14 +425,16 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
         <span>{entry.targetKind === "collection" ? "Full catalogue" : entry.collection.name}</span>
         {entry.subcollection && <span>{entry.subcollection.name}</span>}
       </div>
-      <footer className="post-actions">
-        <button type="button" className={entry.likedByViewer ? "liked" : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
-        <button type="button" disabled={pending} onClick={onComment}><MessageCircle size={19} /><span>{entry.commentCount}</span></button>
-        <button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button>
-        <button type="button" className={styles.wishlistCount} disabled={!entry.wishlistCount} onClick={onWishlisters} aria-label={`View ${entry.wishlistCount} people who wishlisted this`}><span>{entry.wishlistCount}</span></button>
-        <a href={entry.sourceHref} className={styles.openAction}>Explore <ChevronRight size={18} /></a>
-      </footer>
     </>
+  );
+  const sourceActions = (
+    <footer className="post-actions">
+      <button type="button" className={entry.likedByViewer ? "liked" : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
+      <button type="button" disabled={pending} onClick={onComment}><MessageCircle size={19} /><span>{entry.commentCount}</span></button>
+      <button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button>
+      <button type="button" className={styles.wishlistCount} disabled={!entry.wishlistCount} onClick={onWishlisters} aria-label={`View ${entry.wishlistCount} people who wishlisted this`}><span>{entry.wishlistCount}</span></button>
+      <a href={entry.sourceHref} className={styles.openAction}>Explore <ChevronRight size={18} /></a>
+    </footer>
   );
   return (
     <motion.article className={`feed-card ${styles.legacyCard} ${isWishlist ? styles.wishlist : ""}`}
@@ -451,16 +453,16 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
       </div>
       {isWishlist && entry.quoteText && <p className={styles.quote}>{entry.quoteText}</p>}
       {isWishlist
-        ? <div className={styles.repostBox}><div className={styles.repostBoxLabel}><Repeat2 size={14} /> Original {kindLabels[entry.targetKind].toLowerCase()}</div><SourceOwner entry={entry} demo={demo} />{sourceCard}</div>
-        : sourceCard}
+        ? <><div className={styles.repostBox}><div className={styles.repostBoxLabel}><Repeat2 size={14} /> Original {kindLabels[entry.targetKind].toLowerCase()}</div><SourceOwner entry={entry} />{sourceCard}</div>{sourceActions}</>
+        : <>{sourceCard}{sourceActions}</>}
     </motion.article>
   );
 }
 
-function SourceOwner({ entry, demo }: { entry: DiscoveryFeedEntryDTO; demo: boolean }) {
+function SourceOwner({ entry }: { entry: DiscoveryFeedEntryDTO }) {
   const owner = entry.sourceAuthor;
   return (
-    <a className={styles.sourceOwner} href={demo ? entry.sourceHref : `/u/${encodeURIComponent(owner.username)}`}>
+    <a className={styles.sourceOwner} href={`/u/${encodeURIComponent(owner.username)}`} aria-label={`Open ${owner.displayName}'s profile`}>
       {owner.avatarUrl ? <img src={owner.avatarUrl} alt="" /> : <span>{owner.displayName.slice(0, 1)}</span>}
       <div><small>Original collector</small><b>{owner.displayName} <em>@{owner.username}</em></b></div><ChevronRight size={15} />
     </a>
@@ -979,6 +981,18 @@ function PostDetail({ entry, demo, viewer, pending, onClose, onLike, onWishlist,
       document.documentElement.style.overflow = rootOverflow;
     };
   }, []);
+  const originalContent = (
+    <section className={entry.kind === "wishlist" ? styles.originalPostSection : undefined}>
+      {entry.kind === "wishlist" && <div className={styles.originalPostLabel}><span>ORIGINAL ITEM</span><small>From the collector&apos;s catalogue</small></div>}
+      <button type="button" className={styles.postMedia} onClick={onMedia}>
+        {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span><ImageIcon size={28} /></span>}
+        {entry.imageCount > 1 && <i>{entry.imageCount} photos</i>}
+      </button>
+      <div className={styles.postSource}><span><KindIcon kind={entry.targetKind} />{entrySource(entry)}</span><a href={entry.sourceHref}>Explore catalogue <ChevronRight size={15} /></a></div>
+      <h2>{entry.title}</h2>
+      {entry.description && <p className={styles.postDescription}>{entry.description}</p>}
+    </section>
+  );
   if (typeof document === "undefined") return null;
   return createPortal(
     <motion.div className={styles.postBackdrop} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
@@ -992,16 +1006,8 @@ function PostDetail({ entry, demo, viewer, pending, onClose, onLike, onWishlist,
             </a>
             {canFollow && <button type="button" className={`${styles.followButton} ${isFollowing ? styles.following : ""}`} onClick={() => setIsFollowing((current) => !current)}>{isFollowing ? <><Check size={14} /> Following</> : <><UserPlus size={14} /> Follow</>}</button>}
           </div>
-          {entry.kind === "wishlist" && <div className={styles.postWishlisted}><Repeat2 size={15} /> Wishlisted this {kindLabels[entry.targetKind].toLowerCase()}</div>}
-          {entry.kind === "wishlist" && <SourceOwner entry={entry} demo={demo} />}
-          {entry.quoteText && <p className={styles.postQuote}>{entry.quoteText}</p>}
-          <button type="button" className={styles.postMedia} onClick={onMedia}>
-            {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span><ImageIcon size={28} /></span>}
-            {entry.imageCount > 1 && <i>{entry.imageCount} photos</i>}
-          </button>
-          <div className={styles.postSource}><span><KindIcon kind={entry.targetKind} />{entrySource(entry)}</span><a href={entry.sourceHref}>Explore catalogue <ChevronRight size={15} /></a></div>
-          <h2>{entry.title}</h2>
-          {entry.description && <p className={styles.postDescription}>{entry.description}</p>}
+          {entry.kind === "wishlist" ? <section className={styles.wishlistPostContext}><div className={styles.postWishlisted}><Repeat2 size={15} /> Wishlisted this {kindLabels[entry.targetKind].toLowerCase()}</div><SourceOwner entry={entry} />{entry.quoteText && <p className={styles.postQuote}>{entry.quoteText}</p>}</section> : entry.quoteText && <p className={styles.postQuote}>{entry.quoteText}</p>}
+          {originalContent}
           <div className={styles.postActions}>
             <div className={styles.postStatGroup}><button type="button" className={entry.likedByViewer ? styles.detailLiked : undefined} disabled={pending} onClick={onLike} aria-label="Like post"><Heart size={18} fill={entry.likedByViewer ? "currentColor" : "none"} /></button><button type="button" className={styles.postCountButton} onClick={() => onEngagement("likes")} aria-label={`View ${entry.likeCount} likes`}>{entry.likeCount}</button></div>
             <button type="button" onClick={() => commentInputRef.current?.focus()}><MessageCircle size={18} /> {entry.commentCount}</button>
