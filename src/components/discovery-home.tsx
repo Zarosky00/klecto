@@ -552,7 +552,7 @@ function CommentDrawer({ entry, pending, overMedia, onClose, onSubmit }: { entry
 
 function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry: DiscoveryFeedEntryDTO; onClose: () => void; onLike: (target: DiscoveryFeedEntryDTO) => void; onComment: (target: DiscoveryFeedEntryDTO) => void; onWishlist: (target: DiscoveryFeedEntryDTO) => void }) {
   const [selectedDiscovery, setSelectedDiscovery] = useState<ViewerDiscovery | null>(null);
-  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(true);
   const [saved, setSaved] = useState(false);
   const images = useMemo(() => selectedDiscovery?.imageUrls?.length ? selectedDiscovery.imageUrls : selectedDiscovery ? [selectedDiscovery.imageUrl] : entry.imageUrls, [entry.imageUrls, selectedDiscovery]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -702,11 +702,15 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   useEffect(() => {
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
+    const bodyPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
     return () => {
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = rootOverflow;
+      document.body.style.paddingRight = bodyPaddingRight;
     };
   }, []);
   const updatePointer = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -806,7 +810,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   };
   return createPortal(
     <motion.div className={`${styles.mediaBackdrop} ${relatedOpen ? styles.mediaBackdropExpanded : ""} ${immersive ? styles.mediaBackdropFullscreen : ""}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={onClose}>
-      <motion.section ref={viewerRef} layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, scale: 0.97, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
+      <motion.section ref={viewerRef} layout className={`${styles.mediaViewer} ${relatedOpen ? styles.mediaViewerExpanded : ""} ${immersive ? styles.mediaViewerFullscreen : ""}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1], layout: { type: "spring", stiffness: 290, damping: 30 } }} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${entry.title} photos`}>
         <header><div><span>{selectedDiscovery ? "DISCOVERED IN THIS CATALOGUE" : "PHOTO CLOSE-UP"}</span><h3>{selectedDiscovery?.title ?? entry.title}</h3></div><div className={styles.mediaViewerHeaderActions}><motion.a href={catalogueHref} className={styles.mediaViewerHeaderAction} whileTap={{ scale: 0.9 }} aria-label={`Open ${activeSubcollectionSlug ? activeSubcollectionName : entry.collection.name}`} title={`Open ${activeSubcollectionSlug ? activeSubcollectionName : entry.collection.name}`}><FolderOpen size={18} /></motion.a><button type="button" className={styles.mediaViewerHeaderAction} onClick={onClose} aria-label="Close photo viewer"><X size={21} /></button></div></header>
         <div ref={scrollRef} className={styles.mediaTrack} onPointerDown={updatePointer} onPointerMove={updatePointer} onPointerUp={clearPointer} onPointerCancel={clearPointer} onScroll={(event) => {
           const width = event.currentTarget.clientWidth || 1;
