@@ -1561,10 +1561,27 @@ body {
   border-top: 1px solid #e5e9da;
 }
 .collection-showcase-signal .catalog-quiet-view { margin-left: 2px; }
+.catalog-wishlist-action { display: inline-flex; align-items: center; gap: 5px; color: #71776e !important; }
+.catalog-wishlist-action.active { color: #343a33 !important; }
+.catalog-wishlist-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(760px, calc(100% - 40px)); margin: 16px auto 0; border: 1px solid rgb(126 120 107 / 18%); border-radius: 16px 16px 16px 6px; background: linear-gradient(145deg, rgb(255 255 255 / 88%), rgb(245 243 238 / 82%)); padding: 12px 14px; box-shadow: 0 10px 22px rgb(55 50 40 / 7%), inset 0 1px 0 rgb(255 255 255 / 90%); }
+.catalog-wishlist-strip > div { display: flex; min-width: 0; align-items: center; gap: 9px; color: #4c534b; }
+.catalog-wishlist-strip > div > svg { flex: 0 0 auto; color: #343a33; }
+.catalog-wishlist-strip > div > span { display: grid; min-width: 0; gap: 2px; }
+.catalog-wishlist-strip strong { color: #3a4039; font-size: 11px; font-weight: 800; }
+.catalog-wishlist-strip small { overflow: hidden; color: #898b83; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-wishlist-strip > button { min-height: 31px; border: 1px solid #4b5149; border-radius: 999px; background: #2f352e; color: #fff; padding: 0 12px; font-size: 10px; font-weight: 800; }
+.catalog-wishlist-strip > button.active { border-color: #c9c6bd; background: #ece9e2; color: #4d524b; }
+.subcollection-wishlist-strip { width: min(1160px, calc(100% - 36px)); margin-top: 16px; }
+.catalog-item-detail-actions .wished { color: #4f554d; }
 .collection-showcase-engagement { display: none; }
 .subcollection-route-footer { display: contents; }
 
 @media (max-width: 520px) {
+  .catalog-wishlist-strip { width: calc(100% - 24px); margin-top: 12px; padding: 10px 11px; }
+  .subcollection-wishlist-strip { width: calc(100% - 24px); }
+  .catalog-wishlist-strip strong { font-size: 10px; }
+  .catalog-wishlist-strip small { font-size: 8px; }
+  .catalog-wishlist-strip > button { min-height: 29px; padding-inline: 10px; font-size: 9px; }
   .collection-showcase-signal { margin-top: 13px; padding-top: 9px; }
   .collection-showcase-signal .catalog-reactions button,
   .collection-showcase-signal button { min-height: 26px; padding-inline: 4px; font-size: 8px; }

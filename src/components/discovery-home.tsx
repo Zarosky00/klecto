@@ -431,8 +431,7 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
     <footer className="post-actions">
       <button type="button" className={entry.likedByViewer ? "liked" : undefined} disabled={pending} onClick={onLike}><Heart size={19} fill={entry.likedByViewer ? "currentColor" : "none"} /><span>{entry.likeCount}</span></button>
       <button type="button" disabled={pending} onClick={onComment}><MessageCircle size={19} /><span>{entry.commentCount}</span></button>
-      <button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button>
-      <button type="button" className={styles.wishlistCount} disabled={!entry.wishlistCount} onClick={onWishlisters} aria-label={`View ${entry.wishlistCount} people who wishlisted this`}><span>{entry.wishlistCount}</span></button>
+      <span className={styles.postWishlistCluster}><button type="button" className="wished" disabled={pending} onClick={onWishlist}><Repeat2 size={20} /><span>Wishlist</span></button><button type="button" className={styles.wishlistCount} disabled={!entry.wishlistCount} onClick={onWishlisters} aria-label={`View ${entry.wishlistCount} people who wishlisted this`}><span>{entry.wishlistCount}</span></button></span>
       <a href={entry.sourceHref} className={styles.openAction}>Explore <ChevronRight size={18} /></a>
     </footer>
   );

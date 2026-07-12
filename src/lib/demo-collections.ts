@@ -5,6 +5,8 @@ export type DemoReaction = {
   commentCount: number;
   viewCount: number;
   likedByViewer: boolean;
+  wishlistCount?: number;
+  wishlistedByViewer?: boolean;
 };
 
 export type DemoItem = DemoReaction & {

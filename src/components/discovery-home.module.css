@@ -16,6 +16,7 @@
 .repostBox .metadata-row { margin-top: 8px; }
 .wishlist > :global(.post-actions) { margin-top: 14px; border-top: 1px solid rgb(126 120 107 / 18%); padding-top: 9px; }
 .wishlist :global(.post-actions) :global(.wished) { color: #4f544d !important; }
+.wishlist .wishlistCount { color: #4f544d !important; }
 .repostBoxLabel { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; color: #666158; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .repostBoxLabel svg { color: #343a33; }
 .sourceOwner { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; border: 1px solid rgb(126 120 107 / 18%); border-radius: 11px; background: rgb(255 255 255 / 58%); color: inherit; padding: 7px; text-decoration: none; }
@@ -34,6 +35,10 @@
 .openAction { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: #64793a; text-decoration: none; font-size: 11px; font-weight: 800; }
 .wishlistCount { min-width: 32px; justify-content: center !important; color: #64793a !important; }
 .wishlistCount:disabled { opacity: .48; cursor: default; }
+.postWishlistCluster { display: inline-flex; align-items: center; gap: 0; min-width: 0; }
+.postWishlistCluster > button:first-child { border-radius: 10px 0 0 10px; }
+.postWishlistCluster > .wishlistCount { min-width: 25px; border-radius: 0 10px 10px 0; padding-inline: 3px !important; }
+.legacyCard > :global(.post-actions) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; }
 .empty { display: grid; min-height: 190px; place-content: center; justify-items: center; gap: 6px; margin: 16px; border: 1px dashed #cdd8b6; border-radius: 18px; background: #fcfdf8; color: #727c68; font-size: 13px; }
 .empty strong { color: #354029; }
 
