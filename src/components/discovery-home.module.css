@@ -2,12 +2,17 @@
 .demoNote { display: flex; align-items: center; gap: 8px; margin: 13px 16px 0; border: 1px solid #dceaa8; border-radius: 13px; background: #f8fce9; color: #59663f; padding: 10px 12px; font-size: 12px; }
 .demoNote svg { color: #718b35; }
 .legacyCard { min-width: 0; }
+.legacyCard > :global(.post-head) { margin-bottom: 14px; }
 .wishlist { border-color: #d6e5a9 !important; background: linear-gradient(145deg, #fffefa, #f7fce8) !important; }
 .wishlistLabel { display: flex; align-items: center; gap: 7px; color: #627c31; padding: 3px 0 11px; font-size: 12px; font-weight: 750; }
 .quote { margin: 13px 0 16px; color: #2f3826; font-size: 15px; font-weight: 620; line-height: 1.5; }
 .repostBox { margin-top: 12px; border: 1px solid #d6e4ae; border-radius: 17px; background: rgb(255 255 255 / 68%); padding: 13px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 84%); }
 .repostBox .collectionLabel { margin-top: 1px; }
-.repostBox h2 { margin-top: 2px; }
+.repostBox h2 { margin-top: 2px; font-size: 20px; line-height: 1.12; }
+.repostBox .post-copy { max-width: 46ch; margin-bottom: 10px; font-size: 12px; line-height: 1.42; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.repostBox .media { aspect-ratio: 16 / 9; max-height: 190px; border-radius: 13px 13px 13px 5px; }
+.repostBox .sourceOwner { border: 0; background: transparent; padding: 0; margin-bottom: 8px; }
+.repostBox .metadata-row { margin-top: 8px; }
 .repostBox .post-actions { margin-top: 11px; border-top: 1px solid #e5ebd5; padding-top: 9px; }
 .repostBoxLabel { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; color: #6f853c; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .sourceOwner { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; border: 1px solid #e3ead1; border-radius: 11px; background: #fbfdf5; color: inherit; padding: 7px; text-decoration: none; }
@@ -18,6 +23,8 @@
 .collectionLabel b { margin-left: auto; border: 1px solid #dfe5cf; border-radius: 999px; color: #758265; padding: 4px 7px; font-size: 9px; letter-spacing: .04em; }
 .media { display: block; color: inherit; text-decoration: none; }
 .media { width: 100%; border: 0; padding: 0; cursor: zoom-in; text-align: left; }
+.mediaTypeMeta { position: absolute; z-index: 1; left: 11px; bottom: 11px; display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 22px); border: 1px solid rgb(255 255 255 / 32%); border-radius: 999px; background: rgb(22 27 19 / 52%); backdrop-filter: blur(12px); color: rgb(255 255 255 / 94%); padding: 6px 9px; font-size: 9px; font-weight: 760; letter-spacing: .02em; line-height: 1; }
+.mediaTypeMeta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mediaFallback { display: grid; width: 100%; height: 100%; place-items: center; color: #f9fdf1; background: linear-gradient(145deg, #a8bb7b, #657a42); }
 .kindTag { background: rgb(255 255 255 / 90%) !important; color: #526a2a; }
 .avatarFallback { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: #354126; color: #fff; font-weight: 800; }
@@ -211,12 +218,17 @@
 @media (max-width: 640px) {
   .demoNote { margin: 12px 12px 0; }
   .wishlistLabel { padding-bottom: 9px; }
+  .legacyCard > :global(.post-head) { margin-bottom: 12px; }
   .collectionLabel b { display: none; }
   .quote { font-size: 14px; }
   .sheetBackdrop { padding: 0; }
   .sheet { border-radius: 24px 24px 0 0; }
   .commentDrawer { min-height: min(590px, calc(100vh - 16px)); max-height: calc(100vh - 16px); }
-  .repostBox { padding: 11px; }
+  .repostBox { padding: 10px; }
+  .repostBox h2 { font-size: 18px; }
+  .repostBox .media { max-height: 160px; border-radius: 11px 11px 11px 4px; }
+  .repostBox .post-actions { margin-top: 8px; padding-top: 7px; }
+  .mediaTypeMeta { left: 9px; bottom: 9px; padding: 5px 7px; font-size: 8px; }
   .catalogExplorerBackdrop { padding: 0; }
   .postDetail > header { padding: calc(12px + env(safe-area-inset-top)) 16px 12px; }
   .postScroll { padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); }

@@ -415,6 +415,10 @@ function DiscoveryCard({ entry, index, demo, viewer, pending, onLike, onComment,
       {entry.description && <p className="post-copy">{entry.description}</p>}
       <button type="button" className={`media-frame ${styles.media}`} onClick={onMedia} aria-label={`View ${entry.title} photos`}>
         {entry.imageUrls[0] ? <img src={entry.imageUrls[0]} alt="" /> : <span className={styles.mediaFallback}><ImageIcon size={28} /></span>}
+        <span className={styles.mediaTypeMeta}>
+          <KindIcon kind={entry.targetKind} size={12} />
+          <span>{entry.targetKind === "collection" ? "Collection cover" : entry.targetKind === "subcollection" ? "Subcollection cover" : `Object · ${entry.subcollection?.name ?? "Unsorted"}`}</span>
+        </span>
         {entry.imageCount > 1 && <span className="image-count">{entry.imageCount} photos</span>}
       </button>
       <div className="metadata-row">
