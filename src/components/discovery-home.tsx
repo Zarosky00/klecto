@@ -765,8 +765,12 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   const visibleRelatedDiscoveries = !entry.id.startsWith("demo-") && activeSubcollectionId
     ? relatedDiscoveries.filter((discovery) => discovery.subcollectionId === activeSubcollectionId)
     : relatedDiscoveries;
+  const isDemoCatalogue = entry.sourceHref.startsWith("/demo/collections/");
+  const subcollectionHref = (slug: string) => isDemoCatalogue
+    ? `/demo/collections/${encodeURIComponent(entry.collection.slug)}/subcollections/${encodeURIComponent(slug)}`
+    : `${entry.sourceHref}${entry.sourceHref.includes("?") ? "&" : "?"}subcollection=${encodeURIComponent(slug)}`;
   const catalogueHref = activeSubcollectionSlug
-    ? entry.id.startsWith("demo-")
+    ? isDemoCatalogue
       ? `/demo/collections/${encodeURIComponent(entry.collection.slug)}/subcollections/${encodeURIComponent(activeSubcollectionSlug)}`
       : `${entry.sourceHref}${entry.sourceHref.includes("?") ? "&" : "?"}subcollection=${encodeURIComponent(activeSubcollectionSlug)}`
     : entry.sourceHref;
@@ -815,6 +819,16 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
                 <span><small>{discovery.eyebrow}</small><strong>{discovery.title}</strong></span>
               </motion.button>)}
             </div>
+            <section className={styles.mediaAccountShelves} aria-label={`${entry.sourceAuthor.displayName}'s other collections`}>
+              <div className={styles.mediaAccountShelvesHead}><div><span>FROM {entry.sourceAuthor.displayName.toUpperCase()}’S COLLECTION</span><strong>{entry.sourceAuthor.displayName} also keeps these shelves</strong></div><small>Swipe to explore</small></div>
+              <div className={styles.mediaAccountShelvesTrack}>
+                {entry.catalogPreview.subcollections.map((section) => <a key={section.id} href={subcollectionHref(section.slug)} className={styles.mediaAccountShelfCard}>
+                  <div>{section.coverUrl ? <img src={section.coverUrl} alt="" /> : <Layers3 size={24} />}</div>
+                  <span><small>{section.kind} · {section.itemCount} {section.itemCount === 1 ? "object" : "objects"}</small><strong>{section.name}</strong><em>{section.description ?? "Open this shelf to explore the full collection."}</em></span>
+                  <ChevronRight size={16} />
+                </a>)}
+              </div>
+            </section>
           </motion.aside>}
         </AnimatePresence>
       </motion.section>

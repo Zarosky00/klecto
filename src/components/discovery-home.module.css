@@ -133,6 +133,24 @@
 .mediaRelatedCard > span { display: grid; gap: 3px; padding: 8px 5px 3px; }
 .mediaRelatedCard small { overflow: hidden; color: #8a8a83; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .mediaRelatedCard strong { font-size: 11px; line-height: 1.25; }
+.mediaAccountShelves { border-top: 1px solid #e8ebe3; background: linear-gradient(180deg, #f7f8f3, #f1f4eb); padding: 21px 0 27px; }
+.mediaAccountShelvesHead { display: flex; align-items: end; justify-content: space-between; gap: 15px; padding: 0 17px 13px; }
+.mediaAccountShelvesHead div { display: grid; gap: 4px; min-width: 0; }
+.mediaAccountShelvesHead span { color: #7f8b70; font-size: 8px; font-weight: 850; letter-spacing: .13em; }
+.mediaAccountShelvesHead strong { color: #30342c; font-size: 18px; font-weight: 780; letter-spacing: -.025em; }
+.mediaAccountShelvesHead > small { flex: 0 0 auto; color: #8b9285; font-size: 9px; }
+.mediaAccountShelvesTrack { display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-inline: contain; padding: 0 17px 7px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.mediaAccountShelvesTrack::-webkit-scrollbar { display: none; }
+.mediaAccountShelfCard { position: relative; display: grid; flex: 0 0 min(268px, 76vw); grid-template-columns: 104px minmax(0, 1fr) auto; align-items: center; gap: 11px; overflow: hidden; scroll-snap-align: start; border: 1px solid #dde4d3; border-radius: 19px 19px 19px 6px; background: rgb(255 254 250 / 92%); box-shadow: 0 12px 26px rgb(50 59 37 / 8%), inset 0 1px 0 #fff; color: #31362e; padding: 8px; text-decoration: none; transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease; }
+.mediaAccountShelfCard:hover { border-color: #c3d29f; box-shadow: 0 17px 32px rgb(50 59 37 / 13%), inset 0 1px 0 #fff; transform: translateY(-3px); }
+.mediaAccountShelfCard > div { display: grid; width: 104px; height: 92px; place-items: center; overflow: hidden; border-radius: 14px 14px 14px 4px; background: #e5ecd7; color: #6d7e4e; }
+.mediaAccountShelfCard > div img { width: 100%; height: 100%; object-fit: cover; transition: transform .45s cubic-bezier(.16,1,.3,1); }
+.mediaAccountShelfCard:hover > div img { transform: scale(1.06); }
+.mediaAccountShelfCard > span { display: grid; min-width: 0; gap: 4px; }
+.mediaAccountShelfCard > span small { overflow: hidden; color: #7d896c; font-size: 8px; font-weight: 850; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.mediaAccountShelfCard > span strong { overflow: hidden; color: #30352d; font-size: 14px; font-weight: 780; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+.mediaAccountShelfCard > span em { display: -webkit-box; overflow: hidden; color: #82897c; font-size: 9px; font-style: normal; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mediaAccountShelfCard > svg { flex: 0 0 auto; color: #708052; }
 .sheetBackdrop.sheetBackdropOverMedia { z-index: 11050 !important; isolation: isolate; background: rgb(20 20 18 / 46%); backdrop-filter: blur(12px); }
 .commentDrawerOverMedia { width: min(620px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
 .wishlistDrawerOverMedia { width: min(570px, 100%); box-shadow: 0 -24px 80px rgb(15 16 13 / 32%); }
@@ -234,6 +252,12 @@
   .mediaRelatedCard { margin-bottom: 10px; }
   .mediaRelatedCard img { border-radius: 16px; }
   .mediaRelatedCard > span { padding: 7px 4px 2px; }
+  .mediaAccountShelves { padding-block: 18px 23px; }
+  .mediaAccountShelvesHead { align-items: start; flex-direction: column; gap: 4px; padding-inline: 13px; }
+  .mediaAccountShelvesHead strong { font-size: 17px; }
+  .mediaAccountShelvesTrack { gap: 9px; padding-inline: 13px; }
+  .mediaAccountShelfCard { flex-basis: min(286px, 84vw); grid-template-columns: 93px minmax(0, 1fr) auto; }
+  .mediaAccountShelfCard > div { width: 93px; height: 84px; }
   .commentDrawerOverMedia { min-height: min(620px, calc(100dvh - 14px)); max-height: calc(100dvh - 14px); border-radius: 25px 25px 0 0; }
 }
 @media (max-width: 780px) {
