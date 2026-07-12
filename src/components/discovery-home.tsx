@@ -553,6 +553,7 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
   const pinchStartZoom = useRef(1);
   const didPinch = useRef(false);
   const lastImageTap = useRef(0);
+  const relatedBeforeImmersive = useRef(false);
   const relatedDiscoveries = useMemo(() => {
     const subcollectionsById = new Map(entry.catalogPreview.subcollections.map((section) => [section.id, section]));
     const currentImage = entry.imageUrls[0];
@@ -657,8 +658,14 @@ function MediaViewer({ entry, onClose, onLike, onComment, onWishlist }: { entry:
     const now = Date.now();
     if (now - lastImageTap.current < 320) return;
     lastImageTap.current = now;
+    if (immersive) {
+      setImmersive(false);
+      setRelatedOpen(relatedBeforeImmersive.current);
+      return;
+    }
+    relatedBeforeImmersive.current = relatedOpen;
     setRelatedOpen(false);
-    setImmersive((active) => !active);
+    setImmersive(true);
   };
   const exploreDiscovery = (discovery: ViewerDiscovery) => {
     setSelectedDiscovery(discovery.current ? null : discovery);
